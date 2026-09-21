@@ -82,6 +82,11 @@ SID_VKVIDEO="$(openssl rand -hex 8)"
 SID_YADISK="$(openssl rand -hex 8)"
 
 mkdir -p /usr/local/etc/xray
+XRAY_BIN="$(command -v xray)"
+if [[ -z "$XRAY_BIN" ]]; then
+  echo "Xray binary not found after installation."
+  exit 1
+fi
 
 cat >/usr/local/etc/xray/config.json <<EOF
 {
@@ -204,6 +209,25 @@ cat >/usr/local/etc/xray/config.json <<EOF
   ]
 }
 EOF
+
+cat >/etc/systemd/system/xray.service <<EOF
+[Unit]
+Description=ReVPN Xray Service
+After=network.target nss-lookup.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=$XRAY_BIN run -config /usr/local/etc/xray/config.json
+Restart=on-failure
+RestartSec=2
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
 
 cat >/etc/haproxy/haproxy.cfg <<'EOF'
 global
