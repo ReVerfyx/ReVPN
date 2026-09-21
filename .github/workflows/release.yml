@@ -34,6 +34,16 @@ jobs:
           unzip -p /tmp/libxray.zip "$AAR" > app/libs/libXray.aar
           test -s app/libs/libXray.aar
 
+      - name: Install embedded server configuration
+        shell: bash
+        env:
+          REVPN_SERVER_CONFIG_BASE64: ${{ secrets.REVPN_SERVER_CONFIG_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$REVPN_SERVER_CONFIG_BASE64"
+          printf '%s' "$REVPN_SERVER_CONFIG_BASE64" | base64 -d > app/src/main/assets/servers.json
+          jq -e '.servers | length > 0' app/src/main/assets/servers.json >/dev/null
+
       - name: Restore release keystore
         shell: bash
         env:
