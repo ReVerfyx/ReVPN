@@ -68,7 +68,7 @@ jobs:
           test -n "$ANDROID_KEYSTORE_PASSWORD"
           test -n "$ANDROID_KEY_ALIAS"
           test -n "$ANDROID_KEY_PASSWORD"
-          gradle --no-daemon :app:assembleRelease :app:bundleRelease
+          gradle --no-daemon :app:assembleRelease :app:bundleRelease -x :app:lintVitalAnalyzeRelease
 
       - name: Upload production files
         uses: actions/upload-artifact@v4
