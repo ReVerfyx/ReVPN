@@ -15,12 +15,13 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates jq openssl haproxy
 
 if ! command -v xray >/dev/null 2>&1; then
-  echo "[ReVPN] Xray не найден — скачиваю официальный установщик..."
-  XRAY_INSTALLER="$(mktemp)"
-  curl -fL --connect-timeout 10 --max-time 90 --retry 3     https://github.com/XTLS/Xray-install/raw/main/install-release.sh     -o "$XRAY_INSTALLER"
-  echo "[ReVPN] Устанавливаю Xray..."
-  bash "$XRAY_INSTALLER" install
-  rm -f "$XRAY_INSTALLER"
+  echo "[ReVPN] Xray не найден — забираю официальный XTLS/Xray-install через git..."
+  apt-get install -y git unzip >/dev/null
+  XRAY_INSTALL_DIR="$(mktemp -d)"
+  git clone --depth 1 https://github.com/XTLS/Xray-install.git "$XRAY_INSTALL_DIR"
+  echo "[ReVPN] Устанавливаю Xray-core v26.9.9..."
+  bash "$XRAY_INSTALL_DIR/install-release.sh" install --version v26.9.9 --without-geodata
+  rm -rf "$XRAY_INSTALL_DIR"
 else
   echo "[ReVPN] Xray уже установлен: $(xray version | head -n1)"
 fi
