@@ -2,43 +2,68 @@ package com.reverfyx.revpn.auth
 
 import android.app.Activity
 import android.content.MutableContextWrapper
+import android.util.Base64
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import java.security.SecureRandom
-import android.util.Base64
 
 object GoogleAuthManager {
 
     suspend fun signIn(activity: Activity): Result<GoogleAccount> = runCatching {
         val clientId = AuthStore.googleWebClientId(activity)
-        require(clientId.isNotBlank()) {
-            "Не указан Google Web Client ID. Добавь его в Настройки → Google OAuth."
+        require(clientId.isNotBlank()) { "Google вход не настроен" }
+
+        val manager = CredentialManager.create(activity)
+        val context = MutableContextWrapper(activity)
+
+        val result = try {
+            val option = GetGoogleIdOption.Builder()
+                .setFilterByAuthorizedAccounts(false)
+                .setServerClientId(clientId)
+                .setAutoSelectEnabled(false)
+                .setNonce(generateNonce())
+                .build()
+
+            manager.getCredential(
+                context = context,
+                request = GetCredentialRequest.Builder()
+                    .addCredentialOption(option)
+                    .build()
+            )
+        } catch (first: GetCredentialException) {
+            try {
+                val buttonOption = GetSignInWithGoogleOption.Builder(
+                    serverClientId = clientId
+                )
+                    .setNonce(generateNonce())
+                    .build()
+
+                manager.getCredential(
+                    context = context,
+                    request = GetCredentialRequest.Builder()
+                        .addCredentialOption(buttonOption)
+                        .build()
+                )
+            } catch (second: GetCredentialException) {
+                val details = second.message.orEmpty()
+                if (details.contains("reauth", ignoreCase = true) || details.contains("[16]")) {
+                    error("Google просит повторно подтвердить аккаунт. Открой настройки Google-аккаунта на телефоне, подтверди вход и попробуй ещё раз.")
+                }
+                throw second
+            }
         }
 
-        val option = GetSignInWithGoogleOption.Builder(
-            serverClientId = clientId
-        )
-            .setNonce(generateNonce())
-            .build()
-
-        val request = GetCredentialRequest.Builder()
-            .addCredentialOption(option)
-            .build()
-
-        val result = CredentialManager.create(activity).getCredential(
-            context = MutableContextWrapper(activity),
-            request = request
-        )
-
         val custom = result.credential as? CustomCredential
-            ?: error("Google не вернул поддерживаемые данные аккаунта")
+            ?: error("Google не вернул данные аккаунта")
 
         require(custom.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-            "Получен неизвестный тип Google credential"
+            "Google вернул неподдерживаемый тип входа"
         }
 
         val credential = GoogleIdTokenCredential.createFrom(custom.data)
