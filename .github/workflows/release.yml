@@ -79,4 +79,5 @@ jobs:
             app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
-# rebuild-ui-whitelist-1
+
+# rebuild-restored-ui-1
