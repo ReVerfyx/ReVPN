@@ -78,3 +78,5 @@ jobs:
             app/build/outputs/apk/release/app-release.apk
             app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
+
+# rebuild-ui-whitelist-1
