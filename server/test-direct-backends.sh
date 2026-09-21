@@ -11,9 +11,10 @@ PASSWORD="$(jq -r '.servers[0].realityPassword' "$CLIENT")"
 
 test_direct() {
   local id="$1" backend_port="$2"
-  local sni shortid
+  local sni shortid fingerprint
   sni="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | .serverName' "$CLIENT")"
   shortid="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | .shortId' "$CLIENT")"
+  fingerprint="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | (.fingerprint // "chrome")' "$CLIENT")"
 
   local cfg="/tmp/revpn-direct-$id.json"
   local log="/tmp/revpn-direct-$id.log"
@@ -42,7 +43,7 @@ test_direct() {
       "security": "reality",
       "realitySettings": {
         "serverName": "$sni",
-        "fingerprint": "chrome",
+        "fingerprint": "$fingerprint",
         "password": "$PASSWORD",
         "shortId": "$shortid",
         "spiderX": "/"
