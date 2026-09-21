@@ -10,8 +10,10 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.reverfyx.revpn.MainActivity
 import com.reverfyx.revpn.R
+import com.reverfyx.revpn.auth.AuthStore
 import com.reverfyx.revpn.data.MaskProfile
 import com.reverfyx.revpn.data.ServerProfile
+import com.reverfyx.revpn.data.TrafficQuotaStore
 import com.reverfyx.revpn.vpn.ReVpnService
 
 object VpnNotification {
@@ -34,32 +36,55 @@ object VpnNotification {
         )
     }
 
-    fun connecting(context: Context, server: ServerProfile, mask: MaskProfile): Notification =
-        base(context)
+    fun connecting(context: Context, server: ServerProfile, mask: MaskProfile): Notification {
+        val plan = planText(context)
+        return base(context)
             .setContentTitle("Соединение…")
             .setContentText("${server.name} • ${mask.name}")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Текущая локация: ${server.city.ifBlank { server.country }}\n" +
+                        "Маскировка: ${mask.name}\n$plan"
+                )
+            )
             .setOngoing(true)
             .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 2, false))
             .build()
+    }
 
-    fun connected(context: Context, server: ServerProfile, mask: MaskProfile): Notification =
-        base(context)
+    fun connected(context: Context, server: ServerProfile, mask: MaskProfile): Notification {
+        val plan = planText(context)
+        return base(context)
             .setContentTitle("Подключён")
             .setContentText("${server.city.ifBlank { server.country }} • ${mask.name}")
             .setSubText("ReVPN")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Текущая локация: ${server.city.ifBlank { server.country }}\n" +
+                        "Профиль: ${mask.name}\n$plan"
+                )
+            )
             .setOngoing(true)
             .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 3, false))
             .build()
+    }
 
     fun showDisconnected(context: Context, server: ServerProfile?, mask: MaskProfile?) {
-        val text = listOfNotNull(
-            server?.city?.takeIf { it.isNotBlank() },
-            mask?.name
-        ).joinToString(" • ").ifBlank { "VPN выключен" }
+        val location = server?.city?.takeIf { it.isNotBlank() }
+            ?: server?.country?.takeIf { it.isNotBlank() }
+            ?: "Сервер не выбран"
 
         val notification = base(context)
             .setContentTitle("Отключён")
-            .setContentText(text)
+            .setContentText("$location • ${planText(context)}")
+            .setSubText("ReVPN")
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    "Текущая локация: $location\n" +
+                        "Профиль: ${mask?.name ?: "не выбран"}\n" +
+                        planText(context)
+                )
+            )
             .setOngoing(false)
             .setAutoCancel(false)
             .addAction(0, "Подключить", serviceAction(context, ReVpnService.ACTION_CONNECT, 4, true))
@@ -74,6 +99,13 @@ object VpnNotification {
     fun clearIdle(context: Context) {
         context.getSystemService(NotificationManager::class.java).cancel(IDLE_ID)
     }
+
+    private fun planText(context: Context): String =
+        if (AuthStore.isSignedIn(context)) {
+            "Трафик: без ограничений • Google"
+        } else {
+            "Остаток: ${TrafficQuotaStore.formatBytes(TrafficQuotaStore.remainingBytes(context))} из 1 ГБ"
+        }
 
     private fun base(context: Context): NotificationCompat.Builder {
         val open = PendingIntent.getActivity(
