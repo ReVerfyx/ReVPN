@@ -15,7 +15,14 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates jq openssl haproxy
 
 if ! command -v xray >/dev/null 2>&1; then
-  bash <(curl -fsSL https://github.com/XTLS/Xray-install/raw/main/install-release.sh) install
+  echo "[ReVPN] Xray не найден — скачиваю официальный установщик..."
+  XRAY_INSTALLER="$(mktemp)"
+  curl -fL --connect-timeout 10 --max-time 90 --retry 3     https://github.com/XTLS/Xray-install/raw/main/install-release.sh     -o "$XRAY_INSTALLER"
+  echo "[ReVPN] Устанавливаю Xray..."
+  bash "$XRAY_INSTALLER" install
+  rm -f "$XRAY_INSTALLER"
+else
+  echo "[ReVPN] Xray уже установлен: $(xray version | head -n1)"
 fi
 
 systemctl stop haproxy 2>/dev/null || true
@@ -230,7 +237,7 @@ EOF
 
 haproxy -c -f /etc/haproxy/haproxy.cfg
 
-jq -n   --arg id "server-1"   --arg name "$SERVER_NAME"   --arg country "$COUNTRY"   --arg city "$CITY"   --arg host "$PUBLIC_HOST"   --arg uuid "$UUID"   --arg password "$REALITY_PASSWORD"   --arg sidMax "$SID_MAX"   --arg sidVk "$SID_VK"   --arg sidVkVideo "$SID_VKVIDEO"   --arg sidYaDisk "$SID_YADISK"   '{
+jq -n   --arg id "server-1"   --arg name "$SERVER_NAME"   --arg country "$COUNTRY"   --arg city "$CITY"   --arg host "$PUBLIC_HOST"   --arg uuid "$UUID"   --arg password "$REALITY_PASSWORD"   --arg sidStandard "$SID_STANDARD"   --arg sidMax "$SID_MAX"   --arg sidVk "$SID_VK"   --arg sidVkVideo "$SID_VKVIDEO"   --arg sidYaDisk "$SID_YADISK"   '{
     servers: [{
       id: $id,
       name: $name,
