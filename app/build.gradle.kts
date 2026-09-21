@@ -1,4 +1,5 @@
-val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").orNull ?: ""
+val googleWebClientId = providers.gradleProperty("GOOGLE_WEB_CLIENT_ID").orNull
+    ?: "607189910650-iu9ia5qe3usl8arjjc3p1cdjcheisgqj.apps.googleusercontent.com"
 val releaseStoreFile = System.getenv("ANDROID_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
