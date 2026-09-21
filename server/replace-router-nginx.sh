@@ -30,7 +30,7 @@ systemctl stop haproxy 2>/dev/null || true
 systemctl disable haproxy 2>/dev/null || true
 systemctl stop nginx 2>/dev/null || true
 
-cat >/etc/nginx/nginx.conf <<EOF
+cat >/etc/nginx/nginx.conf <<'NGINX_EOF'
 user www-data;
 worker_processes auto;
 pid /run/nginx.pid;
@@ -55,12 +55,12 @@ stream {
     access_log /var/log/nginx/revpn-stream.log revpn;
 
     map $ssl_preread_server_name $revpn_backend {
-        "$STANDARD_SNI" 127.0.0.1:11000;
-        "$MAX_SNI"      127.0.0.1:11001;
-        "$VK_SNI"       127.0.0.1:11002;
-        "$VKVIDEO_SNI"  127.0.0.1:11003;
-        "$YADISK_SNI"   127.0.0.1:11004;
-        default         127.0.0.1:11000;
+        __STANDARD_SNI__ 127.0.0.1:11000;
+        __MAX_SNI__      127.0.0.1:11001;
+        __VK_SNI__       127.0.0.1:11002;
+        __VKVIDEO_SNI__  127.0.0.1:11003;
+        __YADISK_SNI__   127.0.0.1:11004;
+        default          127.0.0.1:11000;
     }
 
     server {
@@ -71,7 +71,15 @@ stream {
         proxy_timeout 2m;
     }
 }
-EOF
+NGINX_EOF
+
+sed -i \
+  -e "s|__STANDARD_SNI__|$STANDARD_SNI|g" \
+  -e "s|__MAX_SNI__|$MAX_SNI|g" \
+  -e "s|__VK_SNI__|$VK_SNI|g" \
+  -e "s|__VKVIDEO_SNI__|$VKVIDEO_SNI|g" \
+  -e "s|__YADISK_SNI__|$YADISK_SNI|g" \
+  /etc/nginx/nginx.conf
 
 nginx -t
 systemctl enable nginx >/dev/null
