@@ -22,9 +22,10 @@ test_profile() {
   local id="$2"
   local connect_port="$3"
 
-  local sni shortid
+  local sni shortid fingerprint
   sni="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | .serverName' "$CLIENT")"
   shortid="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | .shortId' "$CLIENT")"
+  fingerprint="$(jq -r --arg id "$id" '.servers[0].masks[] | select(.id==$id) | (.fingerprint // "chrome")' "$CLIENT")"
 
   local cfg="/tmp/revpn-test-$label-$id.json"
   local log="/tmp/revpn-test-$label-$id.log"
@@ -53,7 +54,7 @@ test_profile() {
       "security": "reality",
       "realitySettings": {
         "serverName": "$sni",
-        "fingerprint": "chrome",
+        "fingerprint": "$fingerprint",
         "password": "$PASSWORD",
         "shortId": "$shortid",
         "spiderX": "/"
