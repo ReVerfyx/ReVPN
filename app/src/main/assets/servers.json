@@ -1,0 +1,19 @@
+{
+  "servers": [
+    {
+      "id": "server-1",
+      "name": "Сервер #1",
+      "country": "Нидерланды",
+      "city": "Амстердам",
+      "host": "YOUR_VPS_IP",
+      "uuid": "YOUR_UUID",
+      "realityPassword": "YOUR_REALITY_PASSWORD",
+      "masks": [
+        {"id":"max","name":"MAX","description":"REALITY / SNI","serverName":"max.ru","port":443,"shortId":"YOUR_SHORT_ID_MAX","fingerprint":"chrome"},
+        {"id":"vk","name":"VK","description":"REALITY / SNI","serverName":"vk.com","port":443,"shortId":"YOUR_SHORT_ID_VK","fingerprint":"chrome"},
+        {"id":"vkvideo","name":"VK Видео","description":"REALITY / SNI","serverName":"vkvideo.ru","port":443,"shortId":"YOUR_SHORT_ID_VKVIDEO","fingerprint":"chrome"},
+        {"id":"yadisk","name":"Яндекс Диск","description":"REALITY / SNI","serverName":"disk.yandex.ru","port":443,"shortId":"YOUR_SHORT_ID_YADISK","fingerprint":"chrome"}
+      ]
+    }
+  ]
+}
