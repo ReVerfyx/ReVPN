@@ -49,6 +49,7 @@ if [[ -z "$PRIVATE_KEY" || -z "$REALITY_PASSWORD" ]]; then
   exit 1
 fi
 
+SID_STANDARD="$(openssl rand -hex 8)"
 SID_MAX="$(openssl rand -hex 8)"
 SID_VK="$(openssl rand -hex 8)"
 SID_VKVIDEO="$(openssl rand -hex 8)"
@@ -60,6 +61,28 @@ cat >/usr/local/etc/xray/config.json <<EOF
 {
   "log": {"loglevel": "warning"},
   "inbounds": [
+    {
+      "tag": "standard",
+      "listen": "127.0.0.1",
+      "port": 11000,
+      "protocol": "vless",
+      "settings": {
+        "users": [{"id": "$UUID", "flow": "xtls-rprx-vision"}],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "method": "raw",
+        "security": "reality",
+        "realitySettings": {
+          "show": false,
+          "target": "www.cloudflare.com:443",
+          "xver": 0,
+          "serverNames": ["www.cloudflare.com"],
+          "privateKey": "$PRIVATE_KEY",
+          "shortIds": ["$SID_STANDARD"]
+        }
+      }
+    },
     {
       "tag": "max",
       "listen": "127.0.0.1",
@@ -176,16 +199,21 @@ frontend revpn_tls
     tcp-request inspect-delay 5s
     tcp-request content accept if { req.ssl_hello_type 1 }
 
+    acl sni_standard req.ssl_sni -i www.cloudflare.com
     acl sni_max req.ssl_sni -i max.ru
     acl sni_vk req.ssl_sni -i vk.com
     acl sni_vkvideo req.ssl_sni -i vkvideo.ru
     acl sni_yadisk req.ssl_sni -i disk.yandex.ru
 
+    use_backend xray_standard if sni_standard
     use_backend xray_max if sni_max
     use_backend xray_vk if sni_vk
     use_backend xray_vkvideo if sni_vkvideo
     use_backend xray_yadisk if sni_yadisk
-    default_backend xray_max
+    default_backend xray_standard
+
+backend xray_standard
+    server xray 127.0.0.1:11000
 
 backend xray_max
     server xray 127.0.0.1:11001
@@ -212,6 +240,7 @@ jq -n   --arg id "server-1"   --arg name "$SERVER_NAME"   --arg country "$COUNTR
       uuid: $uuid,
       realityPassword: $password,
       masks: [
+        {id:"standard",name:"Обычный VPN",description:"REALITY / стандарт",serverName:"www.cloudflare.com",port:443,shortId:$sidStandard,fingerprint:"chrome"},
         {id:"max",name:"MAX",description:"REALITY / SNI",serverName:"max.ru",port:443,shortId:$sidMax,fingerprint:"chrome"},
         {id:"vk",name:"VK",description:"REALITY / SNI",serverName:"vk.com",port:443,shortId:$sidVk,fingerprint:"chrome"},
         {id:"vkvideo",name:"VK Видео",description:"REALITY / SNI",serverName:"vkvideo.ru",port:443,shortId:$sidVkVideo,fingerprint:"chrome"},
