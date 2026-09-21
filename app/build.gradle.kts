@@ -16,7 +16,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.2.0"
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\\\"$googleWebClientId\\\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     buildFeatures {
