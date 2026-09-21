@@ -53,12 +53,19 @@ object UiPreferences {
     private const val KEY_THEME = "theme"
     private const val KEY_VPN_DISCLOSURE = "vpn_disclosure_accepted"
     private const val KEY_CONNECTION_MODE = "connection_mode"
+    private const val KEY_RESTORE_CLASSIC_THEME = "restore_classic_theme_v1"
 
-    fun theme(context: Context): AppTheme =
-        AppTheme.fromKey(
-            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getString(KEY_THEME, AppTheme.GLASS.key)
-        )
+    fun theme(context: Context): AppTheme {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean(KEY_RESTORE_CLASSIC_THEME, false)) {
+            prefs.edit()
+                .putString(KEY_THEME, AppTheme.GLASS.key)
+                .putBoolean(KEY_RESTORE_CLASSIC_THEME, true)
+                .apply()
+            return AppTheme.GLASS
+        }
+        return AppTheme.fromKey(prefs.getString(KEY_THEME, AppTheme.GLASS.key))
+    }
 
     fun setTheme(context: Context, theme: AppTheme) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
