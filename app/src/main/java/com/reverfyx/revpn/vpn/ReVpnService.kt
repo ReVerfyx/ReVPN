@@ -73,7 +73,8 @@ class ReVpnService : VpnService() {
         if (coreRunning || tunnel != null) return
 
         val server = ServerStore.selectedServer(this)
-        val mask = ServerStore.selectedMask(this, server)
+        val mask = server?.masks?.firstOrNull { it.id == "standard" }
+            ?: ServerStore.selectedMask(this, server)
 
         if (!ServerStore.isConfigured(server, mask)) {
             sendStatus(STATUS_ERROR, "Сервер ещё не настроен. Импортируй JSON из установщика VPS.")
