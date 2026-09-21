@@ -125,12 +125,18 @@ object ServerStore {
                         )
                     }
                 }
+                val rawName = s.optString("name", "")
+                val rawCountry = s.optString("country", "")
+                val rawCity = s.optString("city", "")
+                val legacyPlaceholderLocation =
+                    rawCountry == "Нидерланды" && rawCity == "Амстердам"
+
                 add(
                     ServerProfile(
                         id = s.getString("id"),
-                        name = s.getString("name"),
-                        country = s.optString("country", ""),
-                        city = s.optString("city", ""),
+                        name = if (rawName == "Мой VPS" || rawName.isBlank()) "Сервер ${i + 1}" else rawName,
+                        country = if (legacyPlaceholderLocation) "" else rawCountry,
+                        city = if (legacyPlaceholderLocation) "" else rawCity,
                         host = s.getString("host"),
                         uuid = s.getString("uuid"),
                         realityPassword = s.getString("realityPassword"),
