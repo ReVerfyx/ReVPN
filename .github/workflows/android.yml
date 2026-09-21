@@ -1,4 +1,4 @@
-name: Build Android APK
+name: CI - Android compile check
 
 on:
   workflow_dispatch:
@@ -37,13 +37,7 @@ jobs:
           test -n "$AAR"
           unzip -p /tmp/libxray.zip "$AAR" > app/libs/libXray.aar
           test -s app/libs/libXray.aar
-      - name: Build debug APK
+      - name: Compile app
         env:
           GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
         run: gradle --no-daemon -PGOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID" :app:assembleDebug
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: ReVPN-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
