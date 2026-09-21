@@ -1,12 +1,16 @@
 package com.reverfyx.revpn.vpn
 
 import android.content.Intent
+import android.net.TrafficStats
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.Process
+import com.reverfyx.revpn.auth.AuthStore
 import com.reverfyx.revpn.data.MaskProfile
 import com.reverfyx.revpn.data.ServerProfile
 import com.reverfyx.revpn.data.ServerStore
+import com.reverfyx.revpn.data.TrafficQuotaStore
 import com.reverfyx.revpn.notification.VpnNotification
 import com.reverfyx.revpn.xray.XrayConfigFactory
 import libXray.DialerController
@@ -19,8 +23,10 @@ class ReVpnService : VpnService() {
         const val ACTION_CONNECT = "com.reverfyx.revpn.CONNECT"
         const val ACTION_DISCONNECT = "com.reverfyx.revpn.DISCONNECT"
         const val ACTION_STATUS = "com.reverfyx.revpn.STATUS"
+        const val ACTION_QUOTA = "com.reverfyx.revpn.QUOTA"
         const val EXTRA_STATUS = "status"
         const val EXTRA_MESSAGE = "message"
+        const val EXTRA_QUOTA_USED = "quota_used"
         const val STATUS_CONNECTING = "connecting"
         const val STATUS_CONNECTED = "connected"
         const val STATUS_DISCONNECTED = "disconnected"
@@ -37,6 +43,10 @@ class ReVpnService : VpnService() {
     private var controllerRegistered = false
     private var activeServer: ServerProfile? = null
     private var activeMask: MaskProfile? = null
+
+    @Volatile
+    private var quotaMonitorRunning = false
+    private var quotaThread: Thread? = null
 
     private val controller = object : DialerController {
         override fun protectFd(fd: Long): Boolean = protect(fd.toInt())
@@ -69,10 +79,18 @@ class ReVpnService : VpnService() {
             return
         }
 
+        if (!AuthStore.isSignedIn(this) && TrafficQuotaStore.isGuestLimitReached(this)) {
+            sendStatus(STATUS_ERROR, "Гостевой лимит 1 ГБ исчерпан. Войди через Google для безлимитного трафика.")
+            VpnNotification.showDisconnected(this, server, mask)
+            stopSelf()
+            return
+        }
+
         val actualServer = requireNotNull(server)
         val actualMask = requireNotNull(mask)
         activeServer = actualServer
         activeMask = actualMask
+
         VpnNotification.clearIdle(this)
         startForeground(
             VpnNotification.FOREGROUND_ID,
@@ -115,6 +133,7 @@ class ReVpnService : VpnService() {
 
             coreRunning = true
             setRunning(true)
+            startQuotaMonitor()
             startForeground(
                 VpnNotification.FOREGROUND_ID,
                 VpnNotification.connected(this, actualServer, actualMask)
@@ -131,6 +150,69 @@ class ReVpnService : VpnService() {
         }
     }
 
+    private fun startQuotaMonitor() {
+        stopQuotaMonitor()
+        quotaMonitorRunning = true
+        quotaThread = Thread({
+            var last = trafficTotal()
+            var ticks = 0
+
+            while (quotaMonitorRunning && coreRunning) {
+                try {
+                    Thread.sleep(1000)
+                } catch (_: InterruptedException) {
+                    break
+                }
+
+                val now = trafficTotal()
+                val delta = if (now >= last) now - last else 0L
+                last = now
+
+                if (!AuthStore.isSignedIn(this) && delta > 0L) {
+                    val used = TrafficQuotaStore.addGuestBytes(this, delta)
+                    ticks++
+                    if (ticks % 2 == 0) sendQuota(used)
+
+                    if (used >= TrafficQuotaStore.GUEST_LIMIT_BYTES) {
+                        sendStatus(
+                            STATUS_ERROR,
+                            "Гостевой лимит 1 ГБ исчерпан. Войди через Google для продолжения."
+                        )
+                        disconnect(showIdle = true)
+                        break
+                    }
+                }
+            }
+        }, "ReVPN-GuestQuota").apply {
+            isDaemon = true
+            start()
+        }
+    }
+
+    private fun trafficTotal(): Long {
+        val uid = Process.myUid()
+        val rx = TrafficStats.getUidRxBytes(uid).coerceAtLeast(0L)
+        val tx = TrafficStats.getUidTxBytes(uid).coerceAtLeast(0L)
+        return rx + tx
+    }
+
+    private fun sendQuota(used: Long) {
+        sendBroadcast(
+            Intent(ACTION_QUOTA)
+                .setPackage(packageName)
+                .putExtra(EXTRA_QUOTA_USED, used)
+        )
+    }
+
+    private fun stopQuotaMonitor() {
+        quotaMonitorRunning = false
+        val thread = quotaThread
+        quotaThread = null
+        if (thread != null && thread !== Thread.currentThread()) {
+            thread.interrupt()
+        }
+    }
+
     @Synchronized
     private fun disconnect(showIdle: Boolean) {
         val server = activeServer ?: ServerStore.selectedServer(this)
@@ -144,6 +226,7 @@ class ReVpnService : VpnService() {
     }
 
     private fun cleanupCore() {
+        stopQuotaMonitor()
         if (coreRunning) {
             runCatching {
                 LibXray.invoke("""{"apiVersion":3,"method":"stopXray"}""")
