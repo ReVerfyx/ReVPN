@@ -40,22 +40,18 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Cloud
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.LocalFireDepartment
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Public
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Speed
@@ -63,7 +59,6 @@ import androidx.compose.material.icons.rounded.VerifiedUser
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Divider
@@ -110,7 +105,6 @@ import com.reverfyx.revpn.data.MaskProfile
 import com.reverfyx.revpn.data.ServerProfile
 import com.reverfyx.revpn.data.ServerStore
 import com.reverfyx.revpn.data.TrafficQuotaStore
-import com.reverfyx.revpn.data.WhitelistStore
 import com.reverfyx.revpn.vpn.ReVpnService
 import com.reverfyx.revpn.ui.AppTheme
 import com.reverfyx.revpn.ui.ConnectionMode
@@ -178,11 +172,18 @@ private fun ReVpnRoot() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
-    LaunchedEffect(selectedServer?.id) {
+    LaunchedEffect(connectionMode, selectedServer?.id) {
         val server = selectedServer
         if (server != null) {
-            val desired = server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
-            if (desired != null && desired.id != selectedMask?.id) {
+            val current = selectedMask
+            val desired = when (connectionMode) {
+                ConnectionMode.NORMAL ->
+                    server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
+                ConnectionMode.WHITELIST ->
+                    if (current != null && current.id != "standard") current
+                    else server.masks.firstOrNull { it.id != "standard" } ?: server.masks.firstOrNull()
+            }
+            if (desired != null && desired.id != current?.id) {
                 ServerStore.selectMask(context, desired.id)
                 selectedMask = desired
             }
@@ -215,27 +216,12 @@ private fun ReVpnRoot() {
 
     fun requestConnect() {
         val server = ServerStore.selectedServer(context)
-        val mask = server?.masks?.firstOrNull { it.id == "standard" }
-            ?: ServerStore.selectedMask(context, server)
-
-        if (connectionMode == ConnectionMode.WHITELIST &&
-            WhitelistStore.selectedPackages(context).isEmpty()
-        ) {
-            status = ReVpnService.STATUS_ERROR
-            statusMessage = "Выбери хотя бы одно приложение в белом списке."
-            page = Page.SERVERS
-            return
-        }
+        val mask = ServerStore.selectedMask(context, server)
 
         if (!ServerStore.isConfigured(server, mask)) {
             status = ReVpnService.STATUS_ERROR
-            statusMessage = "Сервер временно недоступен."
+            statusMessage = "Сервер ещё не встроен в эту сборку ReVPN."
             return
-        }
-
-        if (mask != null) {
-            ServerStore.selectMask(context, mask.id)
-            selectedMask = mask
         }
 
         if (account == null && TrafficQuotaStore.isGuestLimitReached(context)) {
@@ -258,13 +244,17 @@ private fun ReVpnRoot() {
         connectionMode = newMode
         UiPreferences.setConnectionMode(context, newMode)
         val server = ServerStore.selectedServer(context)
-        val standard = server?.masks?.firstOrNull { it.id == "standard" } ?: server?.masks?.firstOrNull()
-        if (standard != null) {
-            ServerStore.selectMask(context, standard.id)
-            selectedMask = standard
-        }
-        if (newMode == ConnectionMode.WHITELIST) {
-            page = Page.SERVERS
+        if (server != null) {
+            val nextMask = when (newMode) {
+                ConnectionMode.NORMAL ->
+                    server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
+                ConnectionMode.WHITELIST ->
+                    server.masks.firstOrNull { it.id != "standard" } ?: server.masks.firstOrNull()
+            }
+            if (nextMask != null) {
+                ServerStore.selectMask(context, nextMask.id)
+                selectedMask = nextMask
+            }
         }
     }
 
@@ -341,7 +331,7 @@ private fun ReVpnRoot() {
                         NavItem(Modifier.weight(1f), Page.VPN, page, Icons.Rounded.Shield, "VPN") {
                             page = Page.VPN
                         }
-                        NavItem(Modifier.weight(1f), Page.SERVERS, page, Icons.Rounded.Apps, "Белый список") {
+                        NavItem(Modifier.weight(1f), Page.SERVERS, page, Icons.Rounded.Public, "Серверы") {
                             page = Page.SERVERS
                         }
                         NavItem(Modifier.weight(1f), Page.ACCOUNT, page, Icons.Rounded.Person, "Аккаунт") {
@@ -582,32 +572,40 @@ private fun HomeScreen(
     onMask: () -> Unit,
     onAccount: () -> Unit
 ) {
-    val context = LocalContext.current
     val connected = status == ReVpnService.STATUS_CONNECTED
     val connecting = status == ReVpnService.STATUS_CONNECTING
-    val whitelistCount = WhitelistStore.selectedPackages(context).size
 
     val statusText = when (status) {
         ReVpnService.STATUS_CONNECTED -> "Подключён"
-        ReVpnService.STATUS_CONNECTING -> "Подключение…"
-        ReVpnService.STATUS_ERROR -> "Не подключено"
+        ReVpnService.STATUS_CONNECTING -> "Соединение…"
+        ReVpnService.STATUS_ERROR -> "Ошибка подключения"
         else -> "Отключён"
     }
 
-    val infinite = rememberInfiniteTransition(label = "firePulse")
+    val statusColor = when (status) {
+        ReVpnService.STATUS_CONNECTED -> Mint
+        ReVpnService.STATUS_CONNECTING -> Accent
+        ReVpnService.STATUS_ERROR -> Danger
+        else -> Muted
+    }
+
+    val infinite = rememberInfiniteTransition(label = "connectPulse")
     val pulse by infinite.animateFloat(
-        initialValue = 0.98f,
-        targetValue = 1.045f,
+        initialValue = 0.97f,
+        targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
             animation = tween(850),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse"
     )
+    val buttonScale = if (connecting) pulse else if (connected) 1.03f else 1f
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().background(Bg),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 18.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .background(Bg),
+        contentPadding = PaddingValues(18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
@@ -615,11 +613,11 @@ private fun HomeScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Re", color = Accent, style = MaterialTheme.typography.headlineLarge)
+                Text("Re", color = Accent, style = MaterialTheme.typography.headlineMedium)
                 Text(
                     "VPN",
                     color = TextColor,
-                    style = MaterialTheme.typography.headlineLarge,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black
                 )
                 Spacer(Modifier.weight(1f))
@@ -627,91 +625,80 @@ private fun HomeScreen(
                     Icon(
                         if (account != null) Icons.Rounded.VerifiedUser else Icons.Rounded.AccountCircle,
                         null,
-                        tint = if (account != null) Mint else TextColor
+                        tint = if (account != null) Mint else Color.White
                     )
+                }
+                IconButton(onClick = onServer) {
+                    Icon(Icons.Rounded.Public, null, tint = Color.White)
                 }
             }
         }
 
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg2),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 13.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.Info, null, tint = Accent)
-                    Text(
-                        "Защищённое подключение. Режим белого списка отправляет через VPN только выбранные приложения.",
-                        color = Muted,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(start = 12.dp).weight(1f)
-                    )
-                }
-            }
+            ModeSelector(mode = mode, onMode = onMode)
         }
 
-        item { ModeSelector(mode = mode, onMode = onMode) }
+        item {
+            TrafficPlanCard(account = account, guestUsed = guestUsed, onAccount = onAccount)
+        }
 
         item {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 6.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
             ) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(220.dp)
+                        .size(196.dp)
                         .graphicsLayer {
-                            val s = if (connecting || connected) pulse else 1f
-                            scaleX = s
-                            scaleY = s
+                            scaleX = buttonScale
+                            scaleY = buttonScale
                         }
                         .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    Accent.copy(alpha = if (connected) .32f else .18f),
-                                    Accent.copy(alpha = .05f),
-                                    Color.Transparent
-                                )
+                            brush = Brush.radialGradient(
+                                colors = when {
+                                    connected -> listOf(
+                                        Mint.copy(alpha = .34f),
+                                        Purple.copy(alpha = .12f),
+                                        Color.Transparent
+                                    )
+                                    connecting -> listOf(
+                                        Accent.copy(alpha = .28f),
+                                        Purple.copy(alpha = .10f),
+                                        Color.Transparent
+                                    )
+                                    else -> listOf(Accent.copy(alpha = .14f), Color.Transparent)
+                                }
                             ),
-                            CircleShape
+                            shape = CircleShape
                         )
                         .border(
                             2.dp,
-                            if (connected) Mint else Color(0xFF353846),
+                            when {
+                                connected -> Mint
+                                connecting -> Accent
+                                else -> Color(0xFF363A4A)
+                            },
                             CircleShape
                         )
                         .clickable(onClick = onPower)
                 ) {
                     Icon(
-                        Icons.Rounded.LocalFireDepartment,
-                        contentDescription = "VPN",
-                        tint = if (connected) Mint else Accent,
-                        modifier = Modifier.size(116.dp)
+                        Icons.Rounded.PowerSettingsNew,
+                        contentDescription = null,
+                        tint = when {
+                            connected -> Mint
+                            connecting -> Accent
+                            else -> Accent
+                        },
+                        modifier = Modifier.size(74.dp)
                     )
                 }
 
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    statusText,
-                    color = when {
-                        connected -> Mint
-                        status == ReVpnService.STATUS_ERROR -> Danger
-                        else -> Muted
-                    },
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    if (mode == ConnectionMode.WHITELIST)
-                        "Белый список • $whitelistCount приложений"
-                    else "Обычный VPN",
-                    color = Muted,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+                Spacer(Modifier.height(18.dp))
+                Text(statusText, color = statusColor, fontWeight = FontWeight.Bold)
+
                 if (message != null) {
                     Text(
                         message,
@@ -719,58 +706,65 @@ private fun HomeScreen(
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(top = 8.dp)
                     )
+                } else {
+                    Text(
+                        server?.let {
+                            "${it.city.ifBlank { it.country }} • ${mask?.name ?: "Без профиля"}"
+                        } ?: "Сервер не выбран",
+                        color = Muted,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
                 }
             }
         }
 
-        item { TrafficPlanCard(account = account, guestUsed = guestUsed, onAccount = onAccount) }
-
         item {
             SelectCard(
-                icon = Icons.Rounded.Apps,
-                title = "Белый список",
-                subtitle = if (whitelistCount == 0)
-                    "Выбери приложения, которые должны работать через VPN"
-                else "Через VPN: $whitelistCount приложений",
-                badge = "Настроить",
+                icon = Icons.Rounded.Dns,
+                title = server?.name ?: "Сервер",
+                subtitle = server?.let { "${it.country} • ${it.city}" } ?: "Не выбран",
+                badge = "Сервер",
                 onClick = onServer
             )
         }
 
         item {
-            SelectCard(
-                icon = Icons.Rounded.Shield,
-                title = "Основной сервер",
-                subtitle = "Автоматическое защищённое подключение",
-                badge = if (connected) "Онлайн" else "ReVPN",
-                onClick = {}
-            )
+            if (mode == ConnectionMode.WHITELIST) {
+                SelectCard(
+                    icon = Icons.Rounded.Cloud,
+                    title = mask?.name ?: "Профиль",
+                    subtitle = mask?.let { "${it.description} • ${it.serverName}" } ?: "Не выбран",
+                    badge = "Белый список",
+                    onClick = onMask
+                )
+            } else {
+                SelectCard(
+                    icon = Icons.Rounded.Shield,
+                    title = "Обычный VPN",
+                    subtitle = "Стандартный защищённый туннель",
+                    badge = "VPN",
+                    onClick = {}
+                )
+            }
         }
 
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(24.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(18.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.Lock, null, tint = if (connected) Mint else Muted)
-                    Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                        Text("Туннель", color = Muted, style = MaterialTheme.typography.labelMedium)
-                        Text(
-                            if (connected) "Защищён" else "Выключен",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                    Text(
-                        if (server != null && mask != null) "Готов" else "Нет конфигурации",
-                        color = if (server != null && mask != null) Accent else Danger,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SmallStat(
+                    Modifier.weight(1f),
+                    Icons.Rounded.Lock,
+                    "Туннель",
+                    if (connected) "Защищён" else "Выключен",
+                    if (connected) Mint else Muted
+                )
+                SmallStat(
+                    Modifier.weight(1f),
+                    Icons.Rounded.Speed,
+                    "Протокол",
+                    "VLESS",
+                    Accent
+                )
             }
         }
     }
@@ -953,26 +947,12 @@ private fun SmallStat(
 }
 
 @Composable
-@Suppress("UNUSED_PARAMETER")
 private fun ServerScreen(
     modifier: Modifier,
     servers: List<ServerProfile>,
     selected: ServerProfile?,
     onSelect: (ServerProfile) -> Unit
 ) {
-    val context = LocalContext.current
-    val apps = remember { WhitelistStore.launchableApps(context) }
-    var selectedPackages by remember { mutableStateOf(WhitelistStore.selectedPackages(context)) }
-    var query by remember { mutableStateOf("") }
-    val filtered = remember(query, apps) {
-        val q = query.trim()
-        if (q.isBlank()) apps
-        else apps.filter {
-            it.label.contains(q, ignoreCase = true) ||
-                it.packageName.contains(q, ignoreCase = true)
-        }
-    }
-
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Bg),
         contentPadding = PaddingValues(18.dp),
@@ -980,95 +960,43 @@ private fun ServerScreen(
     ) {
         item {
             Text(
-                "Белый список",
+                "Выбор сервера",
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                "Отметь приложения — только их трафик пойдёт через VPN. Любое выбранное приложение можно запустить отсюда.",
-                color = Muted,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+            Text("Можно хранить несколько VPS и быстро переключаться.", color = Muted)
+            Spacer(Modifier.height(10.dp))
         }
 
-        item {
+        items(servers, key = { it.id }) { server ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = CardBg2),
+                modifier = Modifier.fillMaxWidth().clickable { onSelect(server) },
+                colors = CardDefaults.cardColors(containerColor = CardBg),
                 shape = RoundedCornerShape(22.dp)
             ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Rounded.Apps, null, tint = Accent)
-                    Text(
-                        "Выбрано: ${selectedPackages.size}",
-                        modifier = Modifier.padding(start = 12.dp),
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text("Только эти приложения", color = Muted)
-                }
-            }
-        }
-
-        item {
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                leadingIcon = { Icon(Icons.Rounded.Search, null) },
-                label = { Text("Поиск приложений") }
-            )
-        }
-
-        items(filtered, key = { it.packageName }) { app ->
-            val checked = app.packageName in selectedPackages
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (checked) CardBg2 else CardBg
-                ),
-                shape = RoundedCornerShape(20.dp)
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Checkbox(
-                        checked = checked,
-                        onCheckedChange = {
-                            selectedPackages = WhitelistStore.toggle(context, app.packageName)
-                        }
-                    )
-                    Column(
-                        Modifier.weight(1f).padding(horizontal = 8.dp)
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(ThemeRuntime.current.inner, CircleShape)
                     ) {
-                        Text(app.label, fontWeight = FontWeight.Bold, maxLines = 1)
                         Text(
-                            app.packageName,
-                            color = Muted,
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            server.country.take(2).uppercase(),
+                            fontWeight = FontWeight.Black,
+                            color = Accent
                         )
                     }
-                    TextButton(onClick = { WhitelistStore.launch(context, app.packageName) }) {
-                        Icon(Icons.Rounded.PlayArrow, null)
-                        Text("Запустить")
+
+                    Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                        Text(server.name, fontWeight = FontWeight.Bold)
+                        Text("${server.country} • ${server.city}", color = Muted)
+                    }
+
+                    if (server.id == selected?.id) {
+                        Icon(Icons.Rounded.Check, null, tint = Mint)
                     }
                 }
-            }
-        }
-
-        if (filtered.isEmpty()) {
-            item {
-                Text(
-                    "Приложения не найдены.",
-                    color = Muted,
-                    modifier = Modifier.padding(vertical = 24.dp)
-                )
             }
         }
     }
