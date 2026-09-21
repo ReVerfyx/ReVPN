@@ -329,38 +329,49 @@ private fun ReVpnRoot() {
                         error = authError,
                         googleConfigured = AuthStore.googleWebClientId(context).isNotBlank(),
                         onSignIn = {
-                            if (activity == null) return@AccountScreen
-                            if (AuthStore.googleWebClientId(context).isBlank()) {
-                                showOAuth = true
-                                return@AccountScreen
-                            }
-
-                            authBusy = true
-                            authError = null
-                            scope.launch {
-                                GoogleAuthManager.signIn(activity)
-                                    .onSuccess {
-                                        authRevision++
-                                        account = AuthStore.account(context)
-                                        statusMessage = null
+                            when {
+                                activity == null -> {
+                                    authError = "Не удалось получить Activity для Google входа"
+                                }
+                                AuthStore.googleWebClientId(context).isBlank() -> {
+                                    showOAuth = true
+                                }
+                                else -> {
+                                    authBusy = true
+                                    authError = null
+                                    scope.launch {
+                                        GoogleAuthManager.signIn(activity)
+                                            .onSuccess {
+                                                authRevision++
+                                                account = AuthStore.account(context)
+                                                statusMessage = null
+                                            }
+                                            .onFailure {
+                                                authError = it.message ?: "Не удалось войти через Google"
+                                            }
+                                        authBusy = false
                                     }
-                                    .onFailure { authError = it.message ?: "Не удалось войти через Google" }
-                                authBusy = false
+                                }
                             }
                         },
                         onSignOut = {
-                            if (activity == null) return@AccountScreen
-                            authBusy = true
-                            authError = null
-                            scope.launch {
-                                GoogleAuthManager.signOut(activity)
-                                    .onSuccess {
-                                        authRevision++
-                                        account = null
-                                        guestUsed = TrafficQuotaStore.guestUsedBytes(context)
-                                    }
-                                    .onFailure { authError = it.message ?: "Не удалось выйти из аккаунта" }
-                                authBusy = false
+                            if (activity == null) {
+                                authError = "Не удалось получить Activity для выхода"
+                            } else {
+                                authBusy = true
+                                authError = null
+                                scope.launch {
+                                    GoogleAuthManager.signOut(activity)
+                                        .onSuccess {
+                                            authRevision++
+                                            account = null
+                                            guestUsed = TrafficQuotaStore.guestUsedBytes(context)
+                                        }
+                                        .onFailure {
+                                            authError = it.message ?: "Не удалось выйти из аккаунта"
+                                        }
+                                    authBusy = false
+                                }
                             }
                         },
                         onConfigureGoogle = { showOAuth = true }
