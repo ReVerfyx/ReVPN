@@ -5,7 +5,7 @@ import androidx.compose.ui.graphics.Color
 
 enum class ConnectionMode(val key: String, val title: String, val subtitle: String) {
     NORMAL("normal", "VPN", "Обычный защищённый режим"),
-    WHITELIST("whitelist", "Белый список", "Профили совместимости для ограниченных сетей");
+    WHITELIST("whitelist", "Белый список", "Только выбранные приложения через VPN");
 
     companion object {
         fun fromKey(key: String?): ConnectionMode =
