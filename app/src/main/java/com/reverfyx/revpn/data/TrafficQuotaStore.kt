@@ -24,7 +24,10 @@ object TrafficQuotaStore {
     }
 
     fun remainingBytes(context: Context): Long =
-        (GUEST_LIMIT_BYTES - guestUsedBytes(context)).coerceAtLeast(0L)
+        remainingBytesFromUsed(guestUsedBytes(context))
+
+    fun remainingBytesFromUsed(used: Long): Long =
+        (GUEST_LIMIT_BYTES - used.coerceAtLeast(0L)).coerceAtLeast(0L)
 
     fun isGuestLimitReached(context: Context): Boolean =
         guestUsedBytes(context) >= GUEST_LIMIT_BYTES
