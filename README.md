@@ -62,6 +62,28 @@ Changing SNI or the TLS fingerprint does **not** change the destination IP of th
 
 The selectable MAX/VK/VK Video/Yandex Disk entries in ReVPN are REALITY/SNI profiles. They are useful only on networks where the route to the VPS itself is reachable and the filtering happens at a layer where this TLS appearance matters.
 
+## Production build
+
+The store-ready build has no in-app server JSON or OAuth developer fields. Production values are injected by GitHub Actions secrets and become part of the release artifact.
+
+Required repository Actions secrets:
+
+- `REVPN_SERVER_CONFIG_BASE64` — base64 of the generated `/root/revpn-client.json`
+- `GOOGLE_WEB_CLIENT_ID` — Google OAuth Web Client ID
+- `ANDROID_KEYSTORE_BASE64` — base64 of the release signing keystore
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+Run `Actions -> Build Production Release -> Run workflow`. The resulting `ReVPN-production` artifact contains a signed release APK and AAB.
+
+The app includes two user-facing connection modes:
+
+- **VPN** — ordinary encrypted VPN profile
+- **Белый список** — selectable compatibility profiles such as MAX, VK, VK Video and Yandex Disk
+
+The production Settings screen contains appearance options only: Glass, Night, Day, Red, Blue and Purple.
+
 ## Build APK
 
 GitHub Actions automatically builds a debug APK after Android source changes.
@@ -95,11 +117,9 @@ The installer writes the Android client configuration to:
 /root/revpn-client.json
 ```
 
-Copy that JSON, open ReVPN, then:
+For production, do not paste this file into the app. Encode it as base64 and store it in the private GitHub Actions secret `REVPN_SERVER_CONFIG_BASE64`. The release workflow embeds it into the APK/AAB at build time.
 
-`Настройки -> Импорт конфигурации -> вставить JSON -> Импортировать`
-
-For extra servers, run the installer on another VPS and import its `/root/revpn-client.json`. ReVPN merges imported servers instead of replacing the existing list.
+For extra servers, merge the server objects into one `servers` array before encoding the production configuration.
 
 ## Repository layout
 
