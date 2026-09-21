@@ -15,12 +15,30 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates jq openssl haproxy
 
 if ! command -v xray >/dev/null 2>&1; then
-  echo "[ReVPN] Xray не найден — забираю официальный XTLS/Xray-install через git..."
+  echo "[ReVPN] Xray не найден."
   apt-get install -y git unzip >/dev/null
+
+  LOCAL_XRAY_ZIP=""
+  for candidate in     "$PWD/Xray-linux-64.zip"     "$PWD/server/Xray-linux-64.zip"     "/root/Xray-linux-64.zip"     "/tmp/Xray-linux-64.zip"; do
+    if [[ -f "$candidate" ]]; then
+      LOCAL_XRAY_ZIP="$candidate"
+      break
+    fi
+  done
+
   XRAY_INSTALL_DIR="$(mktemp -d)"
   git clone --depth 1 https://github.com/XTLS/Xray-install.git "$XRAY_INSTALL_DIR"
-  echo "[ReVPN] Устанавливаю Xray-core v26.9.9..."
-  bash "$XRAY_INSTALL_DIR/install-release.sh" install --version v26.9.9 --without-geodata
+
+  if [[ -n "$LOCAL_XRAY_ZIP" ]]; then
+    echo "[ReVPN] Найден локальный архив: $LOCAL_XRAY_ZIP"
+    echo "[ReVPN] Устанавливаю Xray из локального ZIP..."
+    bash "$XRAY_INSTALL_DIR/install-release.sh" install --local "$LOCAL_XRAY_ZIP" --without-geodata
+  else
+    echo "[ReVPN] Локальный Xray-linux-64.zip не найден."
+    echo "[ReVPN] Пробую скачать Xray-core v26.9.9..."
+    bash "$XRAY_INSTALL_DIR/install-release.sh" install --version v26.9.9 --without-geodata
+  fi
+
   rm -rf "$XRAY_INSTALL_DIR"
 else
   echo "[ReVPN] Xray уже установлен: $(xray version | head -n1)"
