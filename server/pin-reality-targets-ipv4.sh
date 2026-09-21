@@ -25,7 +25,7 @@ resolve_v4() {
   getent ahostsv4 "$host" 2>/dev/null |
     awk '{print $1}' |
     awk '!seen[$0]++' |
-    head -n 8
+    head -n 4
 }
 
 probe_ip() {
@@ -105,14 +105,14 @@ EOF
   sleep 0.5
   "$XRAY_BIN" run -config "$client_cfg" >"$client_log" 2>&1 &
   local cpid=$!
-  sleep 0.8
+  sleep 0.5
 
   local pass=0
-  for n in 1 2 3; do
-    if curl -fsS --max-time 6 --socks5-hostname 127.0.0.1:11808 https://www.google.com/generate_204 >/dev/null 2>&1; then
+  for n in 1 2; do
+    if curl -fsS --max-time 4 --socks5-hostname 127.0.0.1:11808 https://www.google.com/generate_204 >/dev/null 2>&1; then
       pass=$((pass+1))
     fi
-    sleep 0.3
+    sleep 0.15
   done
 
   kill "$cpid" "$spid" 2>/dev/null || true
@@ -120,7 +120,7 @@ EOF
   wait "$spid" 2>/dev/null || true
   rm -f "$server_cfg" "$client_cfg" "$server_log" "$client_log"
 
-  [[ "$pass" -ge 2 ]]
+  [[ "$pass" -ge 1 ]]
 }
 
 cp -a "$SERVER" "$SERVER.bak.$(date +%s)"
