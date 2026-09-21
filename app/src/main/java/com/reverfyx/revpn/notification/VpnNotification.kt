@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.reverfyx.revpn.MainActivity
 import com.reverfyx.revpn.R
@@ -19,6 +20,7 @@ object VpnNotification {
     private const val IDLE_ID = 42
 
     fun createChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -37,7 +39,7 @@ object VpnNotification {
             .setContentTitle("Соединение…")
             .setContentText("${server.name} • ${mask.name}")
             .setOngoing(true)
-            .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 2))
+            .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 2, false))
             .build()
 
     fun connected(context: Context, server: ServerProfile, mask: MaskProfile): Notification =
@@ -46,7 +48,7 @@ object VpnNotification {
             .setContentText("${server.city.ifBlank { server.country }} • ${mask.name}")
             .setSubText("ReVPN")
             .setOngoing(true)
-            .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 3))
+            .addAction(0, "Отключить", serviceAction(context, ReVpnService.ACTION_DISCONNECT, 3, false))
             .build()
 
     fun showDisconnected(context: Context, server: ServerProfile?, mask: MaskProfile?) {
@@ -60,7 +62,7 @@ object VpnNotification {
             .setContentText(text)
             .setOngoing(false)
             .setAutoCancel(false)
-            .addAction(0, "Подключить", serviceAction(context, ReVpnService.ACTION_CONNECT, 4))
+            .addAction(0, "Подключить", serviceAction(context, ReVpnService.ACTION_CONNECT, 4, true))
             .build()
 
         try {
@@ -90,11 +92,18 @@ object VpnNotification {
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
     }
 
-    private fun serviceAction(context: Context, action: String, requestCode: Int): PendingIntent =
-        PendingIntent.getService(
-            context,
-            requestCode,
-            Intent(context, ReVpnService::class.java).setAction(action),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+    private fun serviceAction(
+        context: Context,
+        action: String,
+        requestCode: Int,
+        foreground: Boolean
+    ): PendingIntent {
+        val intent = Intent(context, ReVpnService::class.java).setAction(action)
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return if (foreground && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PendingIntent.getForegroundService(context, requestCode, intent, flags)
+        } else {
+            PendingIntent.getService(context, requestCode, intent, flags)
+        }
+    }
 }
