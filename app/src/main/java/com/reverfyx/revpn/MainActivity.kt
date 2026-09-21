@@ -74,6 +74,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -105,16 +106,22 @@ import com.reverfyx.revpn.data.ServerProfile
 import com.reverfyx.revpn.data.ServerStore
 import com.reverfyx.revpn.data.TrafficQuotaStore
 import com.reverfyx.revpn.vpn.ReVpnService
+import com.reverfyx.revpn.ui.AppTheme
+import com.reverfyx.revpn.ui.ConnectionMode
+import com.reverfyx.revpn.ui.ThemeRuntime
+import com.reverfyx.revpn.ui.UiPreferences
+import com.reverfyx.revpn.ui.paletteFor
 import kotlinx.coroutines.launch
 
-private val Bg = Color(0xFF11131D)
-private val CardBg = Color(0xFF1C2030)
-private val CardBg2 = Color(0xFF222738)
-private val Accent = Color(0xFFFFD67A)
-private val Mint = Color(0xFF2BE3C2)
-private val Purple = Color(0xFF8A3FFC)
-private val Muted = Color(0xFF9BA1B4)
-private val Danger = Color(0xFFFF8D8D)
+private val Bg get() = ThemeRuntime.current.bg
+private val CardBg get() = ThemeRuntime.current.card
+private val CardBg2 get() = ThemeRuntime.current.card2
+private val Accent get() = ThemeRuntime.current.accent
+private val Mint get() = ThemeRuntime.current.mint
+private val Purple get() = ThemeRuntime.current.purple
+private val Muted get() = ThemeRuntime.current.muted
+private val Danger get() = ThemeRuntime.current.danger
+private val TextColor get() = ThemeRuntime.current.text
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -134,6 +141,9 @@ private fun ReVpnRoot() {
 
     var revision by remember { mutableIntStateOf(0) }
     var authRevision by remember { mutableIntStateOf(0) }
+    var appTheme by remember { mutableStateOf(UiPreferences.theme(context)) }
+    var connectionMode by remember { mutableStateOf(UiPreferences.connectionMode(context)) }
+    ThemeRuntime.current = paletteFor(appTheme)
 
     val servers = remember(revision) { ServerStore.load(context) }
     var selectedServer by remember(revision) { mutableStateOf(ServerStore.selectedServer(context)) }
@@ -146,8 +156,6 @@ private fun ReVpnRoot() {
 
     var page by remember { mutableStateOf(Page.VPN) }
     var showMasks by remember { mutableStateOf(false) }
-    var showImport by remember { mutableStateOf(false) }
-    var showOAuth by remember { mutableStateOf(false) }
 
     var status by remember {
         mutableStateOf(
@@ -193,8 +201,7 @@ private fun ReVpnRoot() {
 
         if (!ServerStore.isConfigured(server, mask)) {
             status = ReVpnService.STATUS_ERROR
-            statusMessage = "Сначала импортируй конфигурацию сервера в Настройках."
-            page = Page.SETTINGS
+            statusMessage = "Сервер ещё не встроен в эту сборку ReVPN."
             return
         }
 
@@ -207,6 +214,24 @@ private fun ReVpnRoot() {
 
         val prepare = VpnService.prepare(context)
         if (prepare == null) startVpn() else vpnPermission.launch(prepare)
+    }
+
+    fun applyConnectionMode(newMode: ConnectionMode) {
+        connectionMode = newMode
+        UiPreferences.setConnectionMode(context, newMode)
+        val server = ServerStore.selectedServer(context)
+        if (server != null) {
+            val nextMask = when (newMode) {
+                ConnectionMode.NORMAL ->
+                    server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
+                ConnectionMode.WHITELIST ->
+                    server.masks.firstOrNull { it.id != "standard" } ?: server.masks.firstOrNull()
+            }
+            if (nextMask != null) {
+                ServerStore.selectMask(context, nextMask.id)
+                selectedMask = nextMask
+            }
+        }
     }
 
     DisposableEffect(Unit) {
@@ -244,17 +269,29 @@ private fun ReVpnRoot() {
         onDispose { runCatching { context.unregisterReceiver(receiver) } }
     }
 
-    MaterialTheme(
-        colorScheme = darkColorScheme(
+    val colors = if (ThemeRuntime.current.isLight) {
+        lightColorScheme(
+            primary = Accent,
+            secondary = Mint,
+            background = Bg,
+            surface = CardBg,
+            onPrimary = Color.White,
+            onBackground = TextColor,
+            onSurface = TextColor
+        )
+    } else {
+        darkColorScheme(
             primary = Accent,
             secondary = Mint,
             background = Bg,
             surface = CardBg,
             onPrimary = Color(0xFF201C13),
-            onBackground = Color.White,
-            onSurface = Color.White
+            onBackground = TextColor,
+            onSurface = TextColor
         )
-    ) {
+    }
+
+    MaterialTheme(colorScheme = colors) {
         Surface(modifier = Modifier.fillMaxSize(), color = Bg) {
             Scaffold(
                 containerColor = Bg,
@@ -262,7 +299,7 @@ private fun ReVpnRoot() {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF151824))
+                            .background(ThemeRuntime.current.nav)
                             .navigationBarsPadding()
                             .padding(horizontal = 4.dp, vertical = 7.dp),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -291,6 +328,8 @@ private fun ReVpnRoot() {
                         message = statusMessage,
                         account = account,
                         guestUsed = guestUsed,
+                        mode = connectionMode,
+                        onMode = { applyConnectionMode(it) },
                         onPower = {
                             if (
                                 status == ReVpnService.STATUS_CONNECTED ||
@@ -334,7 +373,7 @@ private fun ReVpnRoot() {
                                     authError = "Не удалось получить Activity для Google входа"
                                 }
                                 AuthStore.googleWebClientId(context).isBlank() -> {
-                                    showOAuth = true
+                                    authError = "Google-вход ещё не настроен в этой сборке."
                                 }
                                 else -> {
                                     authBusy = true
@@ -373,21 +412,16 @@ private fun ReVpnRoot() {
                                     authBusy = false
                                 }
                             }
-                        },
-                        onConfigureGoogle = { showOAuth = true }
+                        }
                     )
 
                     Page.SETTINGS -> SettingsScreen(
                         modifier = Modifier.padding(padding),
-                        configured = ServerStore.isConfigured(selectedServer, selectedMask),
-                        googleConfigured = AuthStore.googleWebClientId(context).isNotBlank(),
-                        onImport = { showImport = true },
-                        onGoogleOAuth = { showOAuth = true },
-                        onReset = {
-                            ServerStore.resetImported(context)
-                            revision++
-                            selectedServer = ServerStore.selectedServer(context)
-                            selectedMask = ServerStore.selectedMask(context, selectedServer)
+                        theme = appTheme,
+                        onTheme = {
+                            appTheme = it
+                            UiPreferences.setTheme(context, it)
+                            ThemeRuntime.current = paletteFor(it)
                         }
                     )
                 }
@@ -409,7 +443,7 @@ private fun ReVpnRoot() {
                         color = Muted,
                         modifier = Modifier.padding(horizontal = 22.dp, vertical = 4.dp)
                     )
-                    selectedServer?.masks?.forEach { mask ->
+                    selectedServer?.masks?.filter { it.id != "standard" }?.forEach { mask ->
                         MaskRow(mask, mask.id == selectedMask?.id) {
                             ServerStore.selectMask(context, mask.id)
                             selectedMask = mask
@@ -420,30 +454,6 @@ private fun ReVpnRoot() {
                 }
             }
 
-            if (showImport) {
-                ImportDialog(
-                    onDismiss = { showImport = false },
-                    onImported = {
-                        revision++
-                        selectedServer = ServerStore.selectedServer(context)
-                        selectedMask = ServerStore.selectedMask(context, selectedServer)
-                        showImport = false
-                        page = Page.VPN
-                    }
-                )
-            }
-
-            if (showOAuth) {
-                GoogleOAuthDialog(
-                    initial = AuthStore.googleWebClientId(context),
-                    onDismiss = { showOAuth = false },
-                    onSave = {
-                        AuthStore.saveGoogleWebClientId(context, it)
-                        showOAuth = false
-                        authRevision++
-                    }
-                )
-            }
         }
     }
 }
@@ -469,7 +479,7 @@ private fun NavItem(
             modifier = Modifier
                 .size(38.dp)
                 .background(
-                    if (selected) Color(0xFF2A2E3D) else Color.Transparent,
+                    if (selected) ThemeRuntime.current.inner else Color.Transparent,
                     RoundedCornerShape(13.dp)
                 )
         ) {
@@ -493,6 +503,8 @@ private fun HomeScreen(
     message: String?,
     account: GoogleAccount?,
     guestUsed: Long,
+    mode: ConnectionMode,
+    onMode: (ConnectionMode) -> Unit,
     onPower: () -> Unit,
     onServer: () -> Unit,
     onMask: () -> Unit,
@@ -542,7 +554,7 @@ private fun HomeScreen(
                 Text("Re", color = Accent, style = MaterialTheme.typography.headlineMedium)
                 Text(
                     "VPN",
-                    color = Color.White,
+                    color = TextColor,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Black
                 )
@@ -558,6 +570,10 @@ private fun HomeScreen(
                     Icon(Icons.Rounded.Public, null, tint = Color.White)
                 }
             }
+        }
+
+        item {
+            ModeSelector(mode = mode, onMode = onMode)
         }
 
         item {
@@ -652,13 +668,23 @@ private fun HomeScreen(
         }
 
         item {
-            SelectCard(
-                icon = Icons.Rounded.Cloud,
-                title = mask?.name ?: "Маскировка",
-                subtitle = mask?.let { "${it.description} • ${it.serverName}" } ?: "Не выбрана",
-                badge = "REALITY",
-                onClick = onMask
-            )
+            if (mode == ConnectionMode.WHITELIST) {
+                SelectCard(
+                    icon = Icons.Rounded.Cloud,
+                    title = mask?.name ?: "Профиль",
+                    subtitle = mask?.let { "${it.description} • ${it.serverName}" } ?: "Не выбран",
+                    badge = "Белый список",
+                    onClick = onMask
+                )
+            } else {
+                SelectCard(
+                    icon = Icons.Rounded.Shield,
+                    title = "Обычный VPN",
+                    subtitle = "Стандартный защищённый туннель",
+                    badge = "VPN",
+                    onClick = {}
+                )
+            }
         }
 
         item {
@@ -676,6 +702,48 @@ private fun HomeScreen(
                     "Протокол",
                     "VLESS",
                     Accent
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeSelector(
+    mode: ConnectionMode,
+    onMode: (ConnectionMode) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardBg2, RoundedCornerShape(22.dp))
+            .padding(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        ConnectionMode.entries.forEach { item ->
+            val selected = item == mode
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .background(
+                        if (selected) ThemeRuntime.current.inner else Color.Transparent,
+                        RoundedCornerShape(17.dp)
+                    )
+                    .clickable { onMode(item) }
+                    .padding(horizontal = 10.dp, vertical = 11.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    item.title,
+                    color = if (selected) Accent else Muted,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    item.subtitle,
+                    color = Muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -732,7 +800,7 @@ private fun TrafficPlanCard(
                     Modifier
                         .fillMaxWidth()
                         .height(6.dp)
-                        .background(Color(0xFF303546), RoundedCornerShape(99.dp))
+                        .background(ThemeRuntime.current.progressBg, RoundedCornerShape(99.dp))
                 ) {
                     Box(
                         Modifier
@@ -770,7 +838,7 @@ private fun SelectCard(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .size(52.dp)
-                    .background(Color(0xFF292E40), RoundedCornerShape(16.dp))
+                    .background(ThemeRuntime.current.inner, RoundedCornerShape(16.dp))
             ) {
                 Icon(icon, null, tint = Accent)
             }
@@ -786,7 +854,7 @@ private fun SelectCard(
                     color = Accent,
                     style = MaterialTheme.typography.labelMedium,
                     modifier = Modifier
-                        .background(Color(0xFF272737), RoundedCornerShape(14.dp))
+                        .background(ThemeRuntime.current.badge, RoundedCornerShape(14.dp))
                         .padding(horizontal = 11.dp, vertical = 7.dp)
                 )
             }
@@ -811,7 +879,7 @@ private fun SmallStat(
             Icon(icon, null, tint = color)
             Spacer(Modifier.height(10.dp))
             Text(title, color = Muted, style = MaterialTheme.typography.bodySmall)
-            Text(value, color = Color.White, fontWeight = FontWeight.Bold)
+            Text(value, color = TextColor, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -849,7 +917,7 @@ private fun ServerScreen(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier
                             .size(52.dp)
-                            .background(Color(0xFF292E40), CircleShape)
+                            .background(ThemeRuntime.current.inner, CircleShape)
                     ) {
                         Text(
                             server.country.take(2).uppercase(),
@@ -881,8 +949,7 @@ private fun AccountScreen(
     error: String?,
     googleConfigured: Boolean,
     onSignIn: () -> Unit,
-    onSignOut: () -> Unit,
-    onConfigureGoogle: () -> Unit
+    onSignOut: () -> Unit
 ) {
     val remaining = TrafficQuotaStore.remainingBytesFromUsed(guestUsed)
 
@@ -911,7 +978,7 @@ private fun AccountScreen(
                         modifier = Modifier
                             .size(82.dp)
                             .background(
-                                if (account != null) Mint.copy(alpha = .16f) else Color(0xFF292E40),
+                                if (account != null) Mint.copy(alpha = .16f) else ThemeRuntime.current.inner,
                                 CircleShape
                             )
                     ) {
@@ -975,13 +1042,10 @@ private fun AccountScreen(
                         if (!googleConfigured) {
                             Spacer(Modifier.height(10.dp))
                             Text(
-                                "Сначала добавь Google Web Client ID.",
+                                "Вход через Google будет доступен в релизной сборке.",
                                 color = Muted,
                                 style = MaterialTheme.typography.bodySmall
                             )
-                            TextButton(onClick = onConfigureGoogle) {
-                                Text("Настроить Google OAuth")
-                            }
                         }
                     }
 
@@ -1012,11 +1076,8 @@ private fun AccountScreen(
 @Composable
 private fun SettingsScreen(
     modifier: Modifier,
-    configured: Boolean,
-    googleConfigured: Boolean,
-    onImport: () -> Unit,
-    onGoogleOAuth: () -> Unit,
-    onReset: () -> Unit
+    theme: AppTheme,
+    onTheme: (AppTheme) -> Unit
 ) {
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Bg),
@@ -1024,34 +1085,15 @@ private fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text("Настройки", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            Text("Серверы и авторизация ReVPN.", color = Muted)
+            Text("Оформление", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("Выбери внешний вид ReVPN.", color = Muted)
         }
 
-        item {
-            SettingsRow(
-                Icons.Rounded.ContentPaste,
-                "Импорт конфигурации",
-                if (configured) "Сервер настроен" else "Вставь JSON с VPS",
-                onImport
-            )
-        }
-
-        item {
-            SettingsRow(
-                Icons.Rounded.Login,
-                "Google OAuth",
-                if (googleConfigured) "Web Client ID настроен" else "Нужно настроить для входа",
-                onGoogleOAuth
-            )
-        }
-
-        item {
-            SettingsRow(
-                Icons.Rounded.Refresh,
-                "Сбросить серверы",
-                "Вернуть встроенный шаблон",
-                onReset
+        items(AppTheme.entries, key = { it.key }) { item ->
+            ThemeRow(
+                theme = item,
+                selected = item == theme,
+                onClick = { onTheme(item) }
             )
         }
 
@@ -1061,15 +1103,48 @@ private fun SettingsScreen(
                 shape = RoundedCornerShape(22.dp)
             ) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("О белых списках", fontWeight = FontWeight.Bold, color = Accent)
+                    Text("ReVPN", fontWeight = FontWeight.Bold, color = Accent)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "MAX / VK / VK Видео / Яндекс Диск — это профили SNI/REALITY. Они не меняют IP VPS.",
+                        "Серверы и Google-вход встроены в релизную сборку. Пользователю не нужно вводить технические данные.",
                         color = Muted,
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ThemeRow(
+    theme: AppTheme,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val preview = paletteFor(theme)
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(22.dp)
+    ) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.padding(end = 14.dp)
+            ) {
+                Box(Modifier.size(18.dp).background(preview.bg, CircleShape).border(1.dp, Muted.copy(alpha=.3f), CircleShape))
+                Box(Modifier.size(18.dp).background(preview.accent, CircleShape))
+                Box(Modifier.size(18.dp).background(preview.purple, CircleShape))
+            }
+            Column(Modifier.weight(1f)) {
+                Text(theme.title, fontWeight = FontWeight.Bold)
+                Text(theme.subtitle, color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
+            if (selected) Icon(Icons.Rounded.Check, null, tint = Mint)
         }
     }
 }
@@ -1110,7 +1185,7 @@ private fun MaskRow(mask: MaskProfile, selected: Boolean, onClick: () -> Unit) {
                 modifier = Modifier
                     .size(46.dp)
                     .background(
-                        if (selected) Purple else Color(0xFF292E40),
+                        if (selected) Purple else ThemeRuntime.current.inner,
                         RoundedCornerShape(15.dp)
                     )
             ) {
