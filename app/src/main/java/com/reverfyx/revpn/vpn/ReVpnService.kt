@@ -2,8 +2,8 @@ package com.reverfyx.revpn.vpn
 
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import android.os.ParcelFileDescriptor
-import androidx.core.app.NotificationManagerCompat
 import com.reverfyx.revpn.data.MaskProfile
 import com.reverfyx.revpn.data.ServerProfile
 import com.reverfyx.revpn.data.ServerStore
@@ -69,12 +69,15 @@ class ReVpnService : VpnService() {
             return
         }
 
-        server!!
-        mask!!
-        activeServer = server
-        activeMask = mask
+        val actualServer = requireNotNull(server)
+        val actualMask = requireNotNull(mask)
+        activeServer = actualServer
+        activeMask = actualMask
         VpnNotification.clearIdle(this)
-        startForeground(VpnNotification.FOREGROUND_ID, VpnNotification.connecting(this, server, mask))
+        startForeground(
+            VpnNotification.FOREGROUND_ID,
+            VpnNotification.connecting(this, actualServer, actualMask)
+        )
         sendStatus(STATUS_CONNECTING)
 
         try {
@@ -85,7 +88,7 @@ class ReVpnService : VpnService() {
             }
 
             val builder = Builder()
-                .setSession("ReVPN • ${server.name}")
+                .setSession("ReVPN • ${actualServer.name}")
                 .setMtu(1500)
                 .addAddress("10.77.0.2", 30)
                 .addRoute("0.0.0.0", 0)
@@ -99,7 +102,7 @@ class ReVpnService : VpnService() {
             tunnel = established
 
             LibXray.setDNS(controller, "1.1.1.1:53")
-            val config = XrayConfigFactory.build(server, mask, established.fd)
+            val config = XrayConfigFactory.build(actualServer, actualMask, established.fd)
             val request = JSONObject()
                 .put("apiVersion", 3)
                 .put("method", "runXray")
@@ -112,9 +115,9 @@ class ReVpnService : VpnService() {
 
             coreRunning = true
             setRunning(true)
-            NotificationManagerCompat.from(this).notify(
+            startForeground(
                 VpnNotification.FOREGROUND_ID,
-                VpnNotification.connected(this, server, mask)
+                VpnNotification.connected(this, actualServer, actualMask)
             )
             sendStatus(STATUS_CONNECTED)
         } catch (t: Throwable) {
@@ -122,8 +125,8 @@ class ReVpnService : VpnService() {
             cleanupCore()
             setRunning(false)
             sendStatus(STATUS_ERROR, message)
-            VpnNotification.showDisconnected(this, server, mask)
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            VpnNotification.showDisconnected(this, actualServer, actualMask)
+            removeForegroundNotification()
             stopSelf()
         }
     }
@@ -134,7 +137,7 @@ class ReVpnService : VpnService() {
         val mask = activeMask ?: ServerStore.selectedMask(this, server)
         cleanupCore()
         setRunning(false)
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        removeForegroundNotification()
         sendStatus(STATUS_DISCONNECTED)
         if (showIdle) VpnNotification.showDisconnected(this, server, mask)
         stopSelf()
@@ -150,6 +153,15 @@ class ReVpnService : VpnService() {
         runCatching { LibXray.resetDNS() }
         runCatching { tunnel?.close() }
         tunnel = null
+    }
+
+    private fun removeForegroundNotification() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
     }
 
     private fun sendStatus(status: String, message: String? = null) {
