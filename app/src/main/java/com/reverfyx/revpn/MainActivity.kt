@@ -198,13 +198,17 @@ private fun ReVpnRoot() {
             Scaffold(
                 containerColor = Bg,
                 bottomBar = {
-                    NavigationBar(
-                        containerColor = Color(0xFF151824),
-                        modifier = Modifier.navigationBarsPadding()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF151824))
+                            .navigationBarsPadding()
+                            .padding(horizontal = 8.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
-                        NavItem(Page.VPN, page, Icons.Rounded.Shield, "VPN") { page = Page.VPN }
-                        NavItem(Page.SERVERS, page, Icons.Rounded.Public, "Серверы") { page = Page.SERVERS }
-                        NavItem(Page.SETTINGS, page, Icons.Rounded.Settings, "Настройки") { page = Page.SETTINGS }
+                        NavItem(Modifier.weight(1f), Page.VPN, page, Icons.Rounded.Shield, "VPN") { page = Page.VPN }
+                        NavItem(Modifier.weight(1f), Page.SERVERS, page, Icons.Rounded.Public, "Серверы") { page = Page.SERVERS }
+                        NavItem(Modifier.weight(1f), Page.SETTINGS, page, Icons.Rounded.Settings, "Настройки") { page = Page.SETTINGS }
                     }
                 }
             ) { padding ->
@@ -297,20 +301,39 @@ private fun ReVpnRoot() {
 }
 
 @Composable
-private fun NavItem(page: Page, selectedPage: Page, icon: ImageVector, text: String, onClick: () -> Unit) {
-    NavigationBarItem(
-        selected = page == selectedPage,
-        onClick = onClick,
-        icon = { Icon(icon, contentDescription = null) },
-        label = { Text(text) },
-        colors = NavigationBarItemDefaults.colors(
-            selectedIconColor = Accent,
-            selectedTextColor = Accent,
-            indicatorColor = Color(0xFF2A2E3D),
-            unselectedIconColor = Muted,
-            unselectedTextColor = Muted
+private fun NavItem(
+    modifier: Modifier,
+    page: Page,
+    selectedPage: Page,
+    icon: ImageVector,
+    text: String,
+    onClick: () -> Unit
+) {
+    val selected = page == selectedPage
+    Column(
+        modifier = modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(42.dp)
+                .background(
+                    if (selected) Color(0xFF2A2E3D) else Color.Transparent,
+                    RoundedCornerShape(14.dp)
+                )
+        ) {
+            Icon(icon, contentDescription = null, tint = if (selected) Accent else Muted)
+        }
+        Text(
+            text,
+            color = if (selected) Accent else Muted,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
-    )
+    }
 }
 
 @Composable
