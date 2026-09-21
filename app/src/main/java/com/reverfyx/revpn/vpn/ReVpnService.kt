@@ -11,9 +11,6 @@ import com.reverfyx.revpn.data.MaskProfile
 import com.reverfyx.revpn.data.ServerProfile
 import com.reverfyx.revpn.data.ServerStore
 import com.reverfyx.revpn.data.TrafficQuotaStore
-import com.reverfyx.revpn.data.WhitelistStore
-import com.reverfyx.revpn.ui.ConnectionMode
-import com.reverfyx.revpn.ui.UiPreferences
 import com.reverfyx.revpn.notification.VpnNotification
 import com.reverfyx.revpn.xray.XrayConfigFactory
 import libXray.DialerController
@@ -73,8 +70,7 @@ class ReVpnService : VpnService() {
         if (coreRunning || tunnel != null) return
 
         val server = ServerStore.selectedServer(this)
-        val mask = server?.masks?.firstOrNull { it.id == "standard" }
-            ?: ServerStore.selectedMask(this, server)
+        val mask = ServerStore.selectedMask(this, server)
 
         if (!ServerStore.isConfigured(server, mask)) {
             sendStatus(STATUS_ERROR, "Сервер ещё не настроен. Импортируй JSON из установщика VPS.")
@@ -110,7 +106,7 @@ class ReVpnService : VpnService() {
             }
 
             val builder = Builder()
-                .setSession("ReVPN")
+                .setSession("ReVPN • ${actualServer.name}")
                 .setMtu(1500)
                 .addAddress("10.77.0.2", 30)
                 .addRoute("0.0.0.0", 0)
@@ -118,23 +114,6 @@ class ReVpnService : VpnService() {
                 .addAddress("fd00:77::2", 126)
                 .addRoute("::", 0)
                 .addDnsServer("2606:4700:4700::1111")
-
-            if (UiPreferences.connectionMode(this) == ConnectionMode.WHITELIST) {
-                val selectedPackages = WhitelistStore.selectedPackages(this)
-                if (selectedPackages.isEmpty()) {
-                    error("В белом списке не выбрано ни одного приложения")
-                }
-                var added = 0
-                selectedPackages.forEach { packageName ->
-                    runCatching {
-                        builder.addAllowedApplication(packageName)
-                        added++
-                    }
-                }
-                if (added == 0) {
-                    error("Не удалось добавить выбранные приложения в VPN")
-                }
-            }
 
             val established = builder.establish()
                 ?: error("Android не создал VPN-интерфейс")
