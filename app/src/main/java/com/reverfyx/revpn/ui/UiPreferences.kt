@@ -3,6 +3,16 @@ package com.reverfyx.revpn.ui
 import android.content.Context
 import androidx.compose.ui.graphics.Color
 
+enum class ConnectionMode(val key: String, val title: String, val subtitle: String) {
+    NORMAL("normal", "VPN", "Обычный защищённый режим"),
+    WHITELIST("whitelist", "Белый список", "Профили совместимости для ограниченных сетей");
+
+    companion object {
+        fun fromKey(key: String?): ConnectionMode =
+            entries.firstOrNull { it.key == key } ?: NORMAL
+    }
+}
+
 enum class AppTheme(val key: String, val title: String, val subtitle: String) {
     GLASS("glass", "Стекло", "Полупрозрачные карточки и мягкое свечение"),
     NIGHT("night", "Ночная", "Тёмная классическая тема"),
@@ -42,6 +52,7 @@ object UiPreferences {
     private const val PREFS = "revpn_ui"
     private const val KEY_THEME = "theme"
     private const val KEY_VPN_DISCLOSURE = "vpn_disclosure_accepted"
+    private const val KEY_CONNECTION_MODE = "connection_mode"
 
     fun theme(context: Context): AppTheme =
         AppTheme.fromKey(
@@ -53,6 +64,19 @@ object UiPreferences {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_THEME, theme.key)
+            .apply()
+    }
+
+    fun connectionMode(context: Context): ConnectionMode =
+        ConnectionMode.fromKey(
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(KEY_CONNECTION_MODE, ConnectionMode.NORMAL.key)
+        )
+
+    fun setConnectionMode(context: Context, mode: ConnectionMode) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_CONNECTION_MODE, mode.key)
             .apply()
     }
 
