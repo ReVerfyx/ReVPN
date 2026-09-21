@@ -6,9 +6,9 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-SERVER_NAME="${SERVER_NAME:-Мой VPS}"
-COUNTRY="${COUNTRY:-Нидерланды}"
-CITY="${CITY:-Амстердам}"
+SERVER_NAME="${SERVER_NAME:-Сервер 1}"
+COUNTRY="${COUNTRY:-}"
+CITY="${CITY:-}"
 PUBLIC_HOST="${PUBLIC_HOST:-}"
 
 apt-get update
