@@ -6,7 +6,7 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-SERVER_NAME="${SERVER_NAME:-Сервер #1}"
+SERVER_NAME="${SERVER_NAME:-Мой VPS}"
 COUNTRY="${COUNTRY:-Нидерланды}"
 CITY="${CITY:-Амстердам}"
 PUBLIC_HOST="${PUBLIC_HOST:-}"
