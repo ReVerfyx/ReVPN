@@ -2,6 +2,10 @@ name: Build Production Release
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - ".github/workflows/release.yml"
 
 jobs:
   release:
@@ -55,18 +59,16 @@ jobs:
 
       - name: Build signed APK and AAB
         env:
-          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/revpn-release.jks
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$GOOGLE_WEB_CLIENT_ID"
           test -n "$ANDROID_KEYSTORE_PASSWORD"
           test -n "$ANDROID_KEY_ALIAS"
           test -n "$ANDROID_KEY_PASSWORD"
-          gradle --no-daemon -PGOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID" :app:assembleRelease :app:bundleRelease
+          gradle --no-daemon :app:assembleRelease :app:bundleRelease
 
       - name: Upload production files
         uses: actions/upload-artifact@v4
