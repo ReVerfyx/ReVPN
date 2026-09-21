@@ -68,15 +68,23 @@ object ServerStore {
     }
 
     fun importJson(context: Context, raw: String): Result<Int> = runCatching {
-        val parsed = parse(raw)
-        require(parsed.isNotEmpty()) { "В конфигурации нет серверов" }
-        require(parsed.all { it.masks.isNotEmpty() }) { "У каждого сервера нужен хотя бы один профиль маскировки" }
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_JSON, raw)
-            .remove(KEY_SERVER)
-            .remove(KEY_MASK)
+        val incoming = parse(raw)
+        require(incoming.isNotEmpty()) { "В конфигурации нет серверов" }
+        require(incoming.all { it.masks.isNotEmpty() }) { "У каждого сервера нужен хотя бы один профиль маскировки" }
+
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val existing = if (prefs.contains(KEY_JSON)) load(context) else emptyList()
+        val merged = LinkedHashMap<String, ServerProfile>()
+        existing.forEach { merged[it.id] = it }
+        incoming.forEach { merged[it.id] = it }
+
+        prefs.edit()
+            .putString(KEY_JSON, serialize(merged.values.toList()))
+            .putString(KEY_SERVER, incoming.first().id)
+            .putString(KEY_MASK, incoming.first().masks.first().id)
             .apply()
-        parsed.size
+
+        merged.size
     }
 
     fun resetImported(context: Context) {
@@ -131,5 +139,36 @@ object ServerStore {
                 )
             }
         }
+    }
+
+    private fun serialize(servers: List<ServerProfile>): String {
+        val array = JSONArray()
+        servers.forEach { server ->
+            val masks = JSONArray()
+            server.masks.forEach { mask ->
+                masks.put(
+                    JSONObject()
+                        .put("id", mask.id)
+                        .put("name", mask.name)
+                        .put("description", mask.description)
+                        .put("serverName", mask.serverName)
+                        .put("port", mask.port)
+                        .put("shortId", mask.shortId)
+                        .put("fingerprint", mask.fingerprint)
+                )
+            }
+            array.put(
+                JSONObject()
+                    .put("id", server.id)
+                    .put("name", server.name)
+                    .put("country", server.country)
+                    .put("city", server.city)
+                    .put("host", server.host)
+                    .put("uuid", server.uuid)
+                    .put("realityPassword", server.realityPassword)
+                    .put("masks", masks)
+            )
+        }
+        return JSONObject().put("servers", array).toString()
     }
 }
