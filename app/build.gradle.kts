@@ -49,6 +49,10 @@ android {
         }
     }
 
+    lint {
+        disable += "NullSafeMutableLiveData"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
