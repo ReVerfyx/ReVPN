@@ -953,7 +953,7 @@ private fun AccountScreen(
                                 contentColor = Color(0xFF202124)
                             )
                         ) {
-                            Icon(Icons.Rounded.Google, null)
+                            Icon(Icons.Rounded.Login, null)
                             Text(
                                 if (busy) "Входим…" else "Войти через Google",
                                 modifier = Modifier.padding(start = 8.dp),
@@ -1028,7 +1028,7 @@ private fun SettingsScreen(
 
         item {
             SettingsRow(
-                Icons.Rounded.Google,
+                Icons.Rounded.Login,
                 "Google OAuth",
                 if (googleConfigured) "Web Client ID настроен" else "Нужно настроить для входа",
                 onGoogleOAuth
