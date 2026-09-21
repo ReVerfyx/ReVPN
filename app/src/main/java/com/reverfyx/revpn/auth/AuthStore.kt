@@ -49,17 +49,13 @@ object AuthStore {
             .apply()
     }
 
-    fun googleWebClientId(context: Context): String {
-        val local = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_CLIENT_ID, "")
-            .orEmpty()
-            .trim()
-        return local.ifBlank { BuildConfig.GOOGLE_WEB_CLIENT_ID.trim() }
-    }
+    fun googleWebClientId(context: Context): String =
+        BuildConfig.GOOGLE_WEB_CLIENT_ID.trim()
+
 
     fun saveGoogleWebClientId(context: Context, value: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putString(KEY_CLIENT_ID, value.trim())
+            .remove(KEY_CLIENT_ID)
             .apply()
     }
 }
