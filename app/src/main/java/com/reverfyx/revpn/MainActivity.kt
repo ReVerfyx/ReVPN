@@ -156,6 +156,7 @@ private fun ReVpnRoot() {
 
     var page by remember { mutableStateOf(Page.VPN) }
     var showMasks by remember { mutableStateOf(false) }
+    var showVpnDisclosure by remember { mutableStateOf(false) }
 
     var status by remember {
         mutableStateOf(
@@ -227,6 +228,11 @@ private fun ReVpnRoot() {
             status = ReVpnService.STATUS_ERROR
             statusMessage = "Гостевой лимит 1 ГБ закончился. Войди через Google."
             page = Page.ACCOUNT
+            return
+        }
+
+        if (!UiPreferences.hasAcceptedVpnDisclosure(context)) {
+            showVpnDisclosure = true
             return
         }
 
@@ -452,6 +458,35 @@ private fun ReVpnRoot() {
                         }
                     )
                 }
+            }
+
+            if (showVpnDisclosure) {
+                AlertDialog(
+                    onDismissRequest = { showVpnDisclosure = false },
+                    title = { Text("Как ReVPN использует VPN") },
+                    text = {
+                        Text(
+                            "ReVPN использует Android VpnService, чтобы направлять сетевой трафик устройства через выбранный VPN-сервер. " +
+                                "Приложение считает объём переданного трафика для гостевого лимита 1 ГБ. " +
+                                "После входа через Google данные аккаунта используются для статуса аккаунта и снятия гостевого лимита. " +
+                                "Продолжая, ты разрешаешь создание VPN-подключения."
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                UiPreferences.acceptVpnDisclosure(context)
+                                showVpnDisclosure = false
+                                requestConnect()
+                            }
+                        ) { Text("Продолжить") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showVpnDisclosure = false }) {
+                            Text("Отмена")
+                        }
+                    }
+                )
             }
 
             if (showMasks) {
