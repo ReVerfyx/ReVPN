@@ -38,7 +38,9 @@ jobs:
           unzip -p /tmp/libxray.zip "$AAR" > app/libs/libXray.aar
           test -s app/libs/libXray.aar
       - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
+        env:
+          GOOGLE_WEB_CLIENT_ID: ${{ secrets.GOOGLE_WEB_CLIENT_ID }}
+        run: gradle --no-daemon -PGOOGLE_WEB_CLIENT_ID="$GOOGLE_WEB_CLIENT_ID" :app:assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
