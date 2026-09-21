@@ -171,6 +171,24 @@ private fun ReVpnRoot() {
         ActivityResultContracts.RequestPermission()
     ) { }
 
+    LaunchedEffect(connectionMode, selectedServer?.id) {
+        val server = selectedServer
+        if (server != null) {
+            val current = selectedMask
+            val desired = when (connectionMode) {
+                ConnectionMode.NORMAL ->
+                    server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
+                ConnectionMode.WHITELIST ->
+                    if (current != null && current.id != "standard") current
+                    else server.masks.firstOrNull { it.id != "standard" } ?: server.masks.firstOrNull()
+            }
+            if (desired != null && desired.id != current?.id) {
+                ServerStore.selectMask(context, desired.id)
+                selectedMask = desired
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (
             Build.VERSION.SDK_INT >= 33 &&
@@ -355,7 +373,16 @@ private fun ReVpnRoot() {
                         onSelect = { server ->
                             ServerStore.selectServer(context, server.id)
                             selectedServer = server
-                            selectedMask = ServerStore.selectedMask(context, server)
+                            val nextMask = when (connectionMode) {
+                                ConnectionMode.NORMAL ->
+                                    server.masks.firstOrNull { it.id == "standard" } ?: server.masks.firstOrNull()
+                                ConnectionMode.WHITELIST ->
+                                    server.masks.firstOrNull { it.id != "standard" } ?: server.masks.firstOrNull()
+                            }
+                            if (nextMask != null) {
+                                ServerStore.selectMask(context, nextMask.id)
+                                selectedMask = nextMask
+                            }
                             page = Page.VPN
                         }
                     )
