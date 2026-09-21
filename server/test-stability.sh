@@ -90,10 +90,10 @@ score_profile vkvideo 127.0.0.1 11003 backend || backend_failed=1
 score_profile yadisk 127.0.0.1 11004 backend || backend_failed=1
 
 echo
-echo "=== repeated HAProxy tests ==="
+echo "=== repeated public :443 router tests ==="
 proxy_failed=0
 for id in standard max vk vkvideo yadisk; do
-  score_profile "$id" 127.0.0.1 443 haproxy || proxy_failed=1
+  score_profile "$id" 127.0.0.1 443 router || proxy_failed=1
 done
 
 echo
@@ -103,7 +103,7 @@ if [[ "$backend_failed" -eq 0 && "$proxy_failed" -eq 0 ]]; then
 fi
 
 if [[ "$backend_failed" -eq 0 && "$proxy_failed" -ne 0 ]]; then
-  echo "DIAGNOSIS: HAProxy SNI routing is unstable"
+  echo "DIAGNOSIS: public SNI router is unstable"
   exit 2
 fi
 
