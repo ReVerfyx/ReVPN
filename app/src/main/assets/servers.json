@@ -9,6 +9,7 @@
       "uuid": "YOUR_UUID",
       "realityPassword": "YOUR_REALITY_PASSWORD",
       "masks": [
+        {"id":"standard","name":"Обычный VPN","description":"REALITY / стандарт","serverName":"www.cloudflare.com","port":443,"shortId":"YOUR_SHORT_ID_STANDARD","fingerprint":"chrome"},
         {"id":"max","name":"MAX","description":"REALITY / SNI","serverName":"max.ru","port":443,"shortId":"YOUR_SHORT_ID_MAX","fingerprint":"chrome"},
         {"id":"vk","name":"VK","description":"REALITY / SNI","serverName":"vk.com","port":443,"shortId":"YOUR_SHORT_ID_VK","fingerprint":"chrome"},
         {"id":"vkvideo","name":"VK Видео","description":"REALITY / SNI","serverName":"vkvideo.ru","port":443,"shortId":"YOUR_SHORT_ID_VKVIDEO","fingerprint":"chrome"},
