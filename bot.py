@@ -344,13 +344,15 @@ def main():
     me=tg.call('getMe'); bot_name=me['username']
     webhook=tg.call('getWebhookInfo')
     if webhook.get('url'): raise ShopError('На боте настроен webhook. Используй отдельного бота или сначала отключи старый webhook.')
-    panel=Panel(cfg['panel']); inbound=panel.inbound()
-    panel.link({'uuid':'00000000-0000-4000-8000-000000000001','id':'preflight'},inbound)
     payment=Lolz(cfg['lolz'],bot_name)
-    # Read-only permission check. Never create a payment during installation.
-    payment.http.call('invoice/list',query={'page':1})
-    print('Проверено: Telegram @'+bot_name+', API Lolz, VLESS inbound '+str(cfg['panel']['inbound_id']),flush=True)
-    if args.action=='check': return
+    if args.action=='check':
+        panel=Panel(cfg['panel']); inbound=panel.inbound()
+        panel.link({'uuid':'00000000-0000-4000-8000-000000000001','id':'preflight'},inbound)
+        # Explicit diagnostics only: provider outages must not block the menu.
+        payment.http.call('invoice/list',query={'page':1})
+        print('Проверено: Telegram @'+bot_name+', API Lolz, VLESS inbound '+str(cfg['panel']['inbound_id']),flush=True)
+        return
+    print('Запущен Telegram @'+bot_name+'. Платежи проверяются при обработке заказов.',flush=True)
     engine=Engine(store,payment,Delivery(cfg,store,root),cfg)
     bot=Bot(cfg,store,tg,engine)
     def stop(*_): bot.running=False
