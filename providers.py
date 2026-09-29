@@ -260,5 +260,22 @@ class Telegram:
 
     def send(self,uid,text,buttons=None):
         data={'chat_id':uid,'text':text,'parse_mode':'HTML','link_preview_options':{'is_disabled':True}}
-        if buttons: data['reply_markup']={'inline_keyboard':buttons}
+        if buttons:
+            # Native Telegram button colors; leave caller-owned keyboards intact.
+            rows=[]
+            for row in buttons:
+                styled=[]
+                for original in row:
+                    item=dict(original)
+                    action=item.get('callback_data','')
+                    if 'style' not in item:
+                        if 'url' in item or action.startswith('confirm:') or action in ('free','connect','gb:0'):
+                            item['style']='success'
+                        elif action=='operator:other':
+                            item['style']='danger'
+                        elif 'copy_text' in item or action.startswith(('product:','time:','gb:','operator:','check:','view:')) or action in ('mine','buy'):
+                            item['style']='primary'
+                    styled.append(item)
+                rows.append(styled)
+            data['reply_markup']={'inline_keyboard':rows}
         return self.call('sendMessage',**data)
