@@ -11,6 +11,7 @@ import re
 import signal
 import sys
 import time
+import uuid
 from datetime import datetime, timezone
 from core import Store, Engine, ShopError, price, rubles, description
 from providers import Telegram, Lolz, Panel, APIError
@@ -50,10 +51,15 @@ class Bot:
 
     def home(self,uid):
         self.s.state(uid,{})
-        text='<b>ReVPN 🥶</b>\nВыбери свою прохладу. VPN от 50 ₽ / 30 дней.\nОдин час, день, неделя или свой срок.'
-        if self.cfg['lolz']['test']: text+='\n\nТЕСТОВЫЙ РЕЖИМ: реальный доступ не выдаётся.'
-        rows=[[button(label,'product:'+key)] for key,label in PRODUCTS.items()]
-        rows += [[button('Бесплатный Telegram-прокси','free')],[button('Мои подписки','mine'),button('Помощь','help')]]
+        text='<b>ReVPN 🥶</b>\n\nVPN и Telegram-прокси. Выбери подключение, объём трафика и срок — от одного часа.\n\n<b>Безлимит на 30 дней:</b>'
+        rows=[]
+        for key,label in PRODUCTS.items():
+            cost=rubles(price(self.cfg['pricing'],720,0,key))
+            text+='\n'+label+' — <b>'+cost+' ₽</b>'
+            rows.append([button(label+' · '+cost+' ₽ / 30 дн.','product:'+key)])
+        if self.cfg['lolz']['test']: text+='\n\n<b>Тестовый режим:</b> реальный доступ не выдаётся.'
+        rows += [[button('Добавить VPN в Happ','connect'),button('Мои покупки','mine')],
+                 [button('Бесплатный Telegram-прокси','free')],[button('Как подключиться','help')]]
         self.tg.send(uid,text,rows)
 
     def product(self,uid,product):
@@ -75,29 +81,35 @@ class Bot:
 
     def durations(self,uid,gb):
         state=self.s.state(uid)
-        product=state.get('product','regular')
-        self.s.state(uid,{**state,'gb':gb,'step':'duration'})
+        if 'product' not in state: raise ShopError('Выбор тарифа устарел. Открой /start.')
+        product=state['product']
+        selection=uuid.uuid4().hex[:12]
+        self.s.state(uid,{**state,'gb':gb,'step':'duration','selection':selection})
         rows=[]
         for h,label in ((1,'1 час'),(6,'6 часов'),(24,'1 день'),(168,'1 неделя'),(720,'30 дней'),(2160,'90 дней')):
             if h<=self.cfg['pricing']['max_hours']:
                 cost=rubles(price(self.cfg['pricing'],h,gb,product))
-                rows.append([button(label+' — '+cost+' ₽',f'time:{gb}:{h}')])
+                rows.append([button(label+' — '+cost+' ₽',f'time:{selection}:{h}')])
         rows.extend([[button('Свой срок','customtime')],[button('Назад','buy')]])
-        self.tg.send(uid,'Выбери срок: '+('безлимит' if not gb else str(gb)+' ГБ'),rows)
+        self.tg.send(uid,'<b>'+PRODUCTS[product]+'</b>\n'+('Безлимитный трафик' if not gb else str(gb)+' ГБ на весь срок')+'\n\nВыбери срок — на кнопке итоговая цена:',rows)
 
     def quote(self,uid,hours,gb):
-        state=self.s.state(uid); product=state.get('product','regular'); operator=state.get('operator','')
+        state=self.s.state(uid)
+        if 'product' not in state: raise ShopError('Выбор тарифа устарел. Открой /start.')
+        product=state['product']; operator=state.get('operator','')
         selected=targets(self.cfg,product,operator)
         amount=price(self.cfg['pricing'],hours,gb,product)
         qid=self.s.quote(uid,hours,gb,amount,product,operator,selected)
         self.s.state(uid,{})
         extra='\nЛимит делится поровну между '+str(len(selected))+' профилями.' if gb and len(selected)>1 else ''
         self.tg.send(uid,f'<b>{PRODUCTS[product]} · {description(hours,gb)}</b>\nК оплате: <b>{rubles(amount)} ₽</b>.\nСрок начинается при выдаче доступа. Автосписаний нет.'+extra,
-            [[button('Оплатить через LZT Market','confirm:'+qid)],[button('Изменить тариф','buy')]])
+            [[button('Перейти к оплате · '+rubles(amount)+' ₽','confirm:'+qid)],[button('Изменить тариф','buy')]])
 
     def show_order(self,uid,o):
         if o['user_id']!=uid: raise ShopError('Это чужой заказ.')
         title=f"Заказ <code>{o['id']}</code>\n{description(o['hours'],o['gb'])} — {rubles(o['amount'])} ₽\n"
+        if o['status']=='active' and o['expiry_ms']<=time.time()*1000:
+            return self.tg.send(uid,'<b>Срок подписки закончился</b>\nВыбери новый срок, чтобы снова подключиться.',[[button('Купить подписку','buy')]])
         if o['status']=='active':
             dt=datetime.fromtimestamp(o['expiry_ms']/1000,timezone.utc).strftime('%d.%m.%Y %H:%M UTC')
             name=escaped(o.get('display_name') or 'Друг')
@@ -106,7 +118,8 @@ class Bot:
                 rows=[[{'text':'Подключить Telegram-прокси 🥶','url':o['link']}]]
             else:
                 text+='\nВсе оплаченные профили — в одной подписке.'
-                rows=[[{'text':'Добавить подписку в Happ 🥶','url':o['link'].replace('/sub/','/connect/')}]]
+                rows=[[{'text':'Добавить VPN в Happ 🥶','url':o['link'].replace('/sub/','/connect/')}],
+                      [{'text':'Скопировать ссылку подписки','copy_text':{'text':o['link']}}]]
                 text+='\n\nСсылка подписки для ручного импорта:\n<code>'+escaped(o['link'])+'</code>'
             self.tg.send(uid,text,rows+[[button('Мои подписки','mine')]])
             self.s.patch(o['id'],delivered=1)
@@ -114,8 +127,14 @@ class Bot:
             self.tg.send(uid,title+'Тестовая оплата подтверждена. Реальный VPN не создавался.')
             self.s.patch(o['id'],delivered=1)
         elif o['status']=='pending':
-            self.tg.send(uid,title+'Оплати счёт по ссылке. После подтверждения Lolz бот пришлёт ключ автоматически.',
-                [[{'text':'Оплатить через Lolz','url':o['invoice_url']}],[button('Проверить оплату','check:'+o['id'])],[button('Главное меню','home')]])
+            text='<b>Ссылка на оплату готова</b>\n\n'+title
+            if self.cfg['lolz']['test']: text+='\n<b>Тестовый счёт — доступ не выдаётся.</b>\n'
+            text+='\n'+escaped(o['invoice_url'])+'\n\nПосле оплаты подписка придёт сюда автоматически.'
+            self.tg.send(uid,text,
+                [[{'text':'Оплатить '+rubles(o['amount'])+' ₽','url':o['invoice_url']}],
+                 [{'text':'Скопировать ссылку оплаты','copy_text':{'text':o['invoice_url']}}],
+                 [button('Проверить оплату','check:'+o['id'])],[button('Главное меню','home')]])
+            self.s.patch(o['id'],invoice_sent=1)
         elif o['status'] in ('paid','provisioning'):
             self.tg.send(uid,title+'Оплата подтверждена. Готовим ключ; при сбое повторим автоматически.',[[button('Проверить','check:'+o['id'])]])
         elif o['status']=='expired':
@@ -147,7 +166,10 @@ class Bot:
         except ShopError as exc:
             self.engine.retry_later(oid,type(exc).__name__)
             log.warning('order=%s action=check failed=%s',oid,type(exc).__name__)
-        self.show_order(uid,self.s.get(oid,uid))
+        o=self.s.get(oid,uid)
+        if o['status']=='creating' and o.get('error'):
+            return self.tg.send(uid,'<b>Платёжный сервис пока не вернул ссылку</b>\nЗаказ сохранён. Повторим запрос автоматически и пришлём ссылку сюда.\nЗаказ: <code>'+o['id']+'</code>',[[button('Повторить проверку','check:'+oid)],[button('Помощь','help')]])
+        self.show_order(uid,o)
 
     def callback(self,uid,data):
         if data=='home': return self.home(uid)
@@ -167,6 +189,10 @@ class Bot:
             if not free.get('enabled') or not free.get('ad_tag') or not ready(self.engine.panel.data,'free'):
                 raise ShopError('Бесплатный прокси пока недоступен.')
             return self.tg.send(uid,'Бесплатный Telegram-прокси 🥶\nВ списке чатов может отображаться спонсорский канал.',[[{'text':'Подключить бесплатно','url':proxy_link(self.cfg,free['secret'],'free')}]])
+        if data=='connect':
+            orders=[o for o in self.s.mine(uid) if o['status']=='active' and o['product']!='mtproto' and o['expiry_ms']>time.time()*1000]
+            if not orders: return self.tg.send(uid,'<b>Добавить VPN в Happ</b>\nПосле покупки здесь появится твоя подписка. Если уже оплатил, открой «Мои покупки».',[[button('Выбрать VPN','buy')],[button('Мои покупки','mine')]])
+            return self.tg.send(uid,'<b>Выбери подписку для подключения</b>',[[button(PRODUCTS.get(o['product'],'VPN')+' · до '+datetime.fromtimestamp(o['expiry_ms']/1000,timezone.utc).strftime('%d.%m.%Y'),'view:'+o['id'])] for o in orders])
         if data=='mine': return self.mine(uid)
         if data=='help': return self.help(uid)
         if data=='customgb':
@@ -181,12 +207,17 @@ class Bot:
             self.s.state(uid,{**state,'step':'time'})
             return self.tg.send(uid,'Введи срок, например <code>3 часа</code> или <code>12 дней</code>. Минимум — 1 час.')
         if data.startswith('time:'):
-            _,gb,hours=data.split(':')
-            return self.quote(uid,int(hours),int(gb))
+            _,selection,hours=data.split(':')
+            state=self.s.state(uid)
+            if state.get('step')!='duration' or state.get('selection')!=selection:
+                raise ShopError('Эти кнопки устарели. Выбери тариф заново в /start.')
+            return self.quote(uid,int(hours),state['gb'])
         if data.startswith('confirm:'):
             if self.cfg['lolz']['test'] and uid not in self.cfg['telegram']['admins']:
                 raise ShopError('Магазин тестируется. Покупки пока доступны только администратору.')
             o=self.s.order(data.split(':')[1],uid)
+            if o['status']=='creating':
+                self.tg.send(uid,'<b>Создаём ссылку на оплату…</b>\nЭто может занять несколько секунд. Ссылка появится в этом чате.')
             return self.process_order(uid,o['id'])
         if data.startswith(('check:','view:')):
             action,oid=data.split(':',1)
@@ -234,7 +265,7 @@ class Bot:
             try: self.tg.call('answerCallbackQuery',callback_query_id=cb['id'])
             except APIError: pass
         now=time.monotonic()
-        if now-self.limits.get(uid,0)<1: return
+        if now-self.limits.get(uid,0)<0.25: return
         self.limits[uid]=now
         if len(self.limits)>10000: self.limits={k:v for k,v in self.limits.items() if now-v<120}
         try:
@@ -250,7 +281,7 @@ class Bot:
             except Exception as exc:
                 self.engine.retry_later(o['id'],type(exc).__name__)
                 log.warning('order=%s reconcile=%s',o['id'],type(exc).__name__)
-        for o in self.s.undelivered():
+        for o in self.s.unsent_invoices()+self.s.undelivered():
             if time.time()-self.last_delivery.get(o['id'],0)<120: continue
             self.last_delivery[o['id']]=time.time()
             try: self.show_order(o['user_id'],o)

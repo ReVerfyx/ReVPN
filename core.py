@@ -67,7 +67,7 @@ class Store:
         for table, fields in {
             'users': {'display_name': "TEXT NOT NULL DEFAULT ''"},
             'quotes': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'"},
-            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''"}
+            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''", 'invoice_sent': 'INTEGER NOT NULL DEFAULT 0'}
         }.items():
             existing={r[1] for r in self.db.execute('PRAGMA table_info('+table+')')}
             for key, typ in fields.items():
@@ -92,7 +92,7 @@ class Store:
         return dict(r)
 
     def patch(self, oid, **values):
-        allowed = {'status','invoice_id','invoice_url','provider_amount','invoice_expiry','next_check','attempts','expiry_ms','link','delivered','notified','error'}
+        allowed = {'status','invoice_id','invoice_url','provider_amount','invoice_expiry','next_check','attempts','expiry_ms','link','delivered','notified','error','invoice_sent'}
         assert values and set(values) <= allowed
         self.db.execute('UPDATE orders SET '+','.join(k+'=?' for k in values)+' WHERE id=?', (*values.values(),oid))
 
@@ -151,6 +151,9 @@ class Store:
         status IN ('creating','pending','paid','provisioning','expired') AND next_check<=?
         ORDER BY next_check,created LIMIT ?""",(int(time.time()),limit))]
 
+    def unsent_invoices(self):
+        return [dict(r) for r in self.db.execute("SELECT * FROM orders WHERE status='pending' AND invoice_sent=0 LIMIT 10")]
+
     def undelivered(self):
         return [dict(r) for r in self.db.execute("SELECT * FROM orders WHERE status IN ('active','test_paid') AND delivered=0 LIMIT 10")]
 
@@ -175,6 +178,10 @@ class Engine:
             self.s.patch(oid,status='pending',invoice_id=int(invoice['invoice_id']),
                          invoice_url=invoice['url'],provider_amount=str(invoice['amount']),
                          invoice_expiry=int(invoice['expires_at']),attempts=0,error=None)
+            # Deliver the new payment URL before doing another provider request.
+            if invoice.get('status') != 'paid':
+                self.s.patch(oid,next_check=int(time.time())+30)
+                return self.s.get(oid)
             o=self.s.get(oid)
         if o['status'] in ('pending','expired'):
             inv=self.payment.get_invoice(o)

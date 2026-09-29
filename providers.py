@@ -99,10 +99,10 @@ class Lolz:
             'url_success':'https://t.me/'+self.bot_name+'?start=order_'+o['id'],
             'lifetime':self.cfg['invoice_lifetime'], 'required_telegram_id':int(o.get('user_id',0)), 'additional_data':self.metadata(o), 'is_test':self.cfg['test']}
         try: return self.call('POST',data=payload)
-        except APIError:
+        except APIError as original:
             # A failed POST may already have created the invoice. Never change payment_id.
             try: return self.get_invoice(o)
-            except APIError: raise APIError('Lolz invoice uncertain') from None
+            except APIError: raise original from None
 
     def validate(self,i,o,paid_check=False):
         try:
@@ -259,6 +259,6 @@ class Telegram:
         return r['result']
 
     def send(self,uid,text,buttons=None):
-        data={'chat_id':uid,'text':text,'parse_mode':'HTML','link_preview_options':{'is_disabled':True},'protect_content':True}
+        data={'chat_id':uid,'text':text,'parse_mode':'HTML','link_preview_options':{'is_disabled':True}}
         if buttons: data['reply_markup']={'inline_keyboard':buttons}
         return self.call('sendMessage',**data)
