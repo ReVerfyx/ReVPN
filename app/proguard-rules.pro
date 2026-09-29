@@ -1,2 +1,0 @@
--keep class libXray.** { *; }
--dontwarn libXray.**

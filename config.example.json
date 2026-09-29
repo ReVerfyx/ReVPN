@@ -1,0 +1,168 @@
+{
+  "telegram": {
+    "token": "BOTFATHER_TOKEN",
+    "admins": [
+      123456789
+    ],
+    "support": "@your_username"
+  },
+  "lolz": {
+    "token": "LZT_ACCESS_TOKEN_WITH_INVOICE_SCOPE",
+    "merchant_id": 12345,
+    "test": true,
+    "invoice_lifetime": 3600
+  },
+  "panel": {
+    "url": "http://127.0.0.1:44838/YOUR_BASE_PATH/",
+    "token": "",
+    "username": "YOUR_PANEL_LOGIN",
+    "password": "YOUR_PANEL_PASSWORD",
+    "inbound_id": 1,
+    "public_host": "2.26.85.86",
+    "public_port": 0,
+    "ca_file": "",
+    "local_tls": false,
+    "host_header": "",
+    "sni": "",
+    "public_key": ""
+  },
+  "pricing": {
+    "unlimited_30d_rub": 50,
+    "limited_base_30d_rub": 20,
+    "per_gb_rub": "0.05",
+    "minimum_rub": 1,
+    "max_hours": 8760,
+    "max_gb": 100000,
+    "whitelist_30d_rub": 100,
+    "bundle_30d_rub": 150,
+    "mtproto_30d_rub": 25
+  },
+  "subscription": {
+    "public_base": "https://sub.example.com:8443",
+    "local_port": 8090
+  },
+  "supported_operators": [],
+  "nodes": {
+    "regular": {
+      "label": "Обычный",
+      "enabled": true,
+      "panel": {
+        "url": "http://127.0.0.1:44838/YOUR_BASE_PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "2.26.85.86",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    },
+    "max": {
+      "label": "MAX",
+      "enabled": false,
+      "panel": {
+        "url": "https://panel.example.com/PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "vpn.example.com",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    },
+    "yandex": {
+      "label": "Яндекс",
+      "enabled": false,
+      "panel": {
+        "url": "https://panel.example.com/PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "vpn.example.com",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    },
+    "disk": {
+      "label": "Яндекс Диск",
+      "enabled": false,
+      "panel": {
+        "url": "https://panel.example.com/PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "vpn.example.com",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    },
+    "vk": {
+      "label": "VK",
+      "enabled": false,
+      "panel": {
+        "url": "https://panel.example.com/PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "vpn.example.com",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    },
+    "vkvideo": {
+      "label": "VK Видео",
+      "enabled": false,
+      "panel": {
+        "url": "https://panel.example.com/PATH/",
+        "token": "",
+        "username": "YOUR_PANEL_LOGIN",
+        "password": "YOUR_PANEL_PASSWORD",
+        "inbound_id": 1,
+        "public_host": "vpn.example.com",
+        "public_port": 0,
+        "ca_file": "",
+        "local_tls": false,
+        "host_header": "",
+        "sni": "",
+        "public_key": ""
+      }
+    }
+  },
+  "mtproto": {
+    "public_host": "vpn.example.com",
+    "paid": {
+      "enabled": false,
+      "port": 2443
+    },
+    "free": {
+      "enabled": false,
+      "port": 3443,
+      "secret": "",
+      "ad_tag": ""
+    }
+  }
+}
