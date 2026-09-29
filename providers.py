@@ -94,7 +94,7 @@ class Lolz:
         payload={'currency':'rub','amount':o['amount']/100,'payment_id':o['id'],
             'comment':'ReVPN '+o.get('product','regular')+' '+description(o['hours'],o['gb']), 'merchant_id':self.cfg['merchant_id'],
             'url_success':'https://t.me/'+self.bot_name+'?start=order_'+o['id'],
-            'lifetime':self.cfg['invoice_lifetime'], 'additional_data':self.metadata(o), 'is_test':self.cfg['test']}
+            'lifetime':self.cfg['invoice_lifetime'], 'required_telegram_id':int(o.get('user_id',0)), 'additional_data':self.metadata(o), 'is_test':self.cfg['test']}
         try: return self.call('POST',data=payload)
         except APIError:
             # A failed POST may already have created the invoice. Never change payment_id.
