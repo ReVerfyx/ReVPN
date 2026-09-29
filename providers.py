@@ -38,6 +38,7 @@ class HTTP:
         self.opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),
             urllib.request.HTTPSHandler(context=context),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
         self.host_header=host_header
+        self.csrf_token=""
 
     def call(self,path,method='GET',data=None,query=None,form=False,timeout=30):
         url=self.base+'/'+path.lstrip('/')
@@ -45,6 +46,8 @@ class HTTP:
         headers={'Accept':'application/json','User-Agent':'ReVPN-Shop/1.0'}
         if self.token: headers['Authorization']='Bearer '+self.token
         if self.host_header: headers['Host']=self.host_header
+        if self.csrf_token and method.upper() not in ('GET','HEAD','OPTIONS'):
+            headers['X-CSRF-Token']=self.csrf_token
         body=None
         if data is not None:
             body=(urllib.parse.urlencode(data) if form else json.dumps(data)).encode()
@@ -141,10 +144,25 @@ class Panel:
         self.http=HTTP('3X-UI',cfg['url'],cfg.get('token',''),cfg.get('ca_file',''),cfg.get('local_tls',False),cfg.get('host_header',''))
         self.authenticated=bool(cfg.get('token'))
 
+    def refresh_csrf(self):
+        self.http.csrf_token=''
+        try:
+            r=self.http.call('csrf-token')
+        except APIError as exc:
+            if exc.status in (404,405): return  # Older panels have no CSRF endpoint.
+            raise APIError('3X-UI получение CSRF',exc.status) from None
+        token=r.get('obj')
+        if r.get('success') is not True or not isinstance(token,str) or not token:
+            raise ShopError('3X-UI: неожиданный ответ /csrf-token. Проверь URL панели.')
+        self.http.csrf_token=token
+
     def login(self):
         if not self.cfg.get('token'):
+            self.refresh_csrf()
             r=self.http.call('login','POST',data={'username':self.cfg['username'],'password':self.cfg['password']},form=True)
-            if r.get('success') is not True: raise APIError('3X-UI login')
+            if r.get('success') is not True:
+                raise ShopError('3X-UI отклонила вход: проверь данные панели, 2FA и временную блокировку входа.')
+            self.refresh_csrf()
         self.authenticated=True
 
     def request(self,path,method='GET',data=None,form=False):

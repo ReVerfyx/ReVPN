@@ -164,7 +164,7 @@ class Bot:
             return self.traffic(uid)
         if data=='free':
             free=self.cfg.get('mtproto',{}).get('free',{})
-            if not free.get('enabled') or not free.get('ad_tag') or not ready(self.engine.data,'free'):
+            if not free.get('enabled') or not free.get('ad_tag') or not ready(self.engine.panel.data,'free'):
                 raise ShopError('Бесплатный прокси пока недоступен.')
             return self.tg.send(uid,'Бесплатный Telegram-прокси 🥶\nВ списке чатов может отображаться спонсорский канал.',[[{'text':'Подключить бесплатно','url':proxy_link(self.cfg,free['secret'],'free')}]])
         if data=='mine': return self.mine(uid)

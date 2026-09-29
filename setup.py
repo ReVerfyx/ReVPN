@@ -90,6 +90,10 @@ def main():
             panel['host_header']=settings.get('webDomain','')
     else:
         panel['url']=ask('URL панели: https://домен:порт/путь/')
+    panel['url']=ask('URL панели (Enter — найденный автоматически)',panel['url'])
+    panel['url']=panel['url'].rstrip('/')
+    if panel['url'].endswith('/panel'): panel['url']=panel['url'][:-6]
+    panel['url']+='/'
     panel['token']=getpass.getpass('API-токен 3X-UI (Enter — логин и пароль): ').strip()
     if panel['token']:
         panel['username']=panel['password']=''
