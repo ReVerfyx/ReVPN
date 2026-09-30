@@ -253,6 +253,35 @@ class Panel:
             raise APIError('3X-UI verification')
         return link
 
+
+    def update_expiry(self,o,new_expiry):
+        """Set an existing VLESS client's exact expiry, re-enabling an expired bonus client."""
+        new_expiry=int(new_expiry)
+        r=self.inbound()
+        clients=obj(r['settings']).get('clients',[])
+        existing=next((c for c in clients if c.get('email')==o['email'] or c.get('id')==o['uuid']),None)
+        if existing is None:
+            return self.ensure({**o,'expiry_ms':new_expiry})
+        allowed=('id','email','subId','enable','flow','totalGB','expiryTime','limitIp','limitHwid',
+                 'tgId','reset','resetDay','resetWeekday','resetMax','resetCount','comment')
+        client={k:existing[k] for k in allowed if k in existing}
+        client.update({'id':o['uuid'],'email':o['email'],'subId':o['sub_id'],'enable':True,
+                       'totalGB':o.get('quota_bytes',o['gb']*1024**3),'expiryTime':new_expiry,
+                       'limitIp':int(client.get('limitIp',0) or 0),'tgId':o['user_id']})
+        try:
+            self.request('panel/api/clients/update/'+urllib.parse.quote(o['email'],safe=''),'POST',data=client)
+        except APIError as e:
+            if e.status not in (404,405): raise
+            legacy={**client,'tgId':str(o['user_id'])}
+            self.request('panel/api/inbounds/updateClient/'+str(o['uuid']),'POST',
+                         data={'id':self.cfg['inbound_id'],'settings':json.dumps({'clients':[legacy]})},form=True)
+        r=self.inbound()
+        found=next((c for c in obj(r['settings']).get('clients',[]) if c.get('id')==o['uuid']),None)
+        if not found or found.get('email')!=o['email'] or int(found.get('expiryTime',0))!=new_expiry or not found.get('enable',True):
+            raise APIError('3X-UI verification')
+        return self.link({**o,'expiry_ms':new_expiry},r)
+
+
 class Telegram:
     def __init__(self,token):
         self.http=HTTP('Telegram','https://api.telegram.org/bot'+token)
