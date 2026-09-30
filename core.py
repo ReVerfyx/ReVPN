@@ -67,7 +67,7 @@ class Store:
         for table, fields in {
             'users': {'display_name': "TEXT NOT NULL DEFAULT ''"},
             'quotes': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'"},
-            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''", 'invoice_sent': 'INTEGER NOT NULL DEFAULT 0'}
+            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''", 'invoice_sent': 'INTEGER NOT NULL DEFAULT 0', 'migration_notified': 'INTEGER NOT NULL DEFAULT 0'}
         }.items():
             existing={r[1] for r in self.db.execute('PRAGMA table_info('+table+')')}
             for key, typ in fields.items():
@@ -92,7 +92,7 @@ class Store:
         return dict(r)
 
     def patch(self, oid, **values):
-        allowed = {'status','invoice_id','invoice_url','provider_amount','invoice_expiry','next_check','attempts','expiry_ms','link','delivered','notified','error','invoice_sent'}
+        allowed = {'status','invoice_id','invoice_url','provider_amount','invoice_expiry','next_check','attempts','expiry_ms','link','delivered','notified','error','invoice_sent','migration_notified'}
         assert values and set(values) <= allowed
         self.db.execute('UPDATE orders SET '+','.join(k+'=?' for k in values)+' WHERE id=?', (*values.values(),oid))
 

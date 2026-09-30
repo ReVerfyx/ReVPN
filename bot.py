@@ -117,6 +117,14 @@ class Bot:
             if o.get('product')=='mtproto':
                 rows=[[{'text':'Подключить Telegram-прокси 🥶','url':o['link']}]]
             else:
+                # Rebuild the subscription URL from the current public_base.
+                # This migrates existing orders from the old IP URL to the
+                # domain the next time the user opens «Мои покупки».
+                current_base=self.cfg['subscription']['public_base'].rstrip('/')
+                current_link=current_base+'/sub/'+o['sub_id']
+                if o.get('link') != current_link:
+                    self.s.patch(o['id'],link=current_link)
+                o['link']=current_link
                 text+='\nВсе оплаченные профили — в одной подписке.'
                 rows=[[{'text':'Добавить VPN в Happ 🥶','url':o['link'].replace('/sub/','/connect/')}],
                       [{'text':'Скопировать ссылку подписки','copy_text':{'text':o['link']}}]]
@@ -283,6 +291,24 @@ class Bot:
             self.last_delivery[o['id']]=time.time()
             try: self.show_order(o['user_id'],o)
             except APIError: pass
+        # Migrate users who received the old IP-based subscription URL. HTTPS
+        # cannot redirect safely from an IP with the old certificate, so send
+        # the current domain URL once after the public_base is changed.
+        base=self.cfg['subscription']['public_base'].rstrip('/')
+        for row in self.s.db.execute("SELECT * FROM orders WHERE status='active' AND product!='mtproto' AND migration_notified=0 LIMIT 20").fetchall():
+            o=dict(row); link=base+'/sub/'+o['sub_id']
+            try:
+                if o.get('link') != link:
+                    self.tg.send(o['user_id'],
+                        '<b>Обновление ссылки ReVPN</b>\n\nСтарая ссылка больше не используется. '
+                        'Импортируй новую подписку в Happ:',
+                        [[{'text':'Добавить новую подписку в Happ 🥶','url':link.replace('/sub/','/connect/')}],
+                         [{'text':'Скопировать новую ссылку','copy_text':{'text':link}}]])
+                    self.s.patch(o['id'],link=link,migration_notified=1)
+                else:
+                    self.s.patch(o['id'],migration_notified=1)
+            except APIError:
+                pass
         # Alert admins once when payment is stuck or invoice requires review.
         for row in self.s.db.execute("SELECT * FROM orders WHERE notified=0 AND (status='review' OR (attempts>=3 AND status IN ('paid','provisioning'))) LIMIT 5").fetchall():
             o=dict(row)
