@@ -304,7 +304,7 @@ class Bot:
                     # Financial mutations precede offset commit and are idempotent.
                     offset=u['update_id']+1
                     self.s.setmeta('offset',offset)
-                if time.monotonic()-last_check>=10:
+                if time.monotonic()-last_check>=5:
                     self.reconcile(); last_check=time.monotonic()
             except Exception as exc:
                 log.error('worker error=%s',type(exc).__name__)

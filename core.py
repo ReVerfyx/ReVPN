@@ -184,7 +184,10 @@ class Engine:
                          invoice_expiry=int(invoice['expires_at']),attempts=0,error=None)
             # Deliver the new payment URL before doing another provider request.
             if invoice.get('status') != 'paid':
-                self.s.patch(oid,next_check=int(time.time())+30)
+                # Check shortly after the buyer returns from LZT.  The provider
+                # may still be processing the payment, so keep the durable
+                # order and retry instead of making the user press anything.
+                self.s.patch(oid,next_check=int(time.time())+10)
                 return self.s.get(oid)
             o=self.s.get(oid)
         if o['status'] in ('pending','expired'):
@@ -199,7 +202,7 @@ class Engine:
                 expired=now > o['invoice_expiry']
                 # Retain late-payment reconciliation. Expired orders checked daily
                 # after 7 days; never silently abandon a paid invoice.
-                gap=86400 if now-o['created']>7*86400 else (600 if expired else 30)
+                gap=86400 if now-o['created']>7*86400 else (600 if expired else 10)
                 self.s.patch(oid,status='expired' if expired else 'pending',next_check=now+gap,attempts=0)
                 return self.s.get(oid)
             if inv['is_test']:
