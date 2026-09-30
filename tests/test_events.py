@@ -91,6 +91,21 @@ class EventTests(unittest.TestCase):
         self.assertFalse(second["accepted"])
         self.assertEqual(second["user"]["balance_seconds"],1)
 
+    def test_challenge_respects_cooldown(self):
+        now=2_000_000_000
+        data=init_data(55,now)
+        state=self.service.state(data,now)
+        nonce=state["user"]["nonce"]
+        self.service.db.execute(
+            "UPDATE event_users SET challenge_answer=1,cooldown_until_ms=? WHERE user_id=55",
+            (int((now+5)*1000),),
+        )
+        blocked=self.service.challenge(data,nonce,1,now+1)
+        self.assertIsNotNone(blocked["user"]["challenge"])
+        self.assertGreater(blocked["user"]["cooldown_ms"],0)
+        passed=self.service.challenge(data,nonce,1,now+6)
+        self.assertIsNone(passed["user"]["challenge"])
+
     def test_claim_reuses_single_bonus_order(self):
         now=2_000_000_000
         data=init_data(77,now)
