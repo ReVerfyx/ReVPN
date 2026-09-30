@@ -84,6 +84,24 @@ class Delivery:
                              (o['id'],n,link,child['quota_bytes']))
         return self.cfg['subscription']['public_base'].rstrip('/')+'/sub/'+o['sub_id']
 
+    def sync_expiry(self,o):
+        """Idempotently provision or update an order to its stored expiry."""
+        if o['product']=='mtproto':
+            raise ShopError('Ивенты не продлевают MTProto.')
+        selected=self.selected(o)
+        for n in selected:
+            if n not in self.panels: raise ShopError('Узел недоступен: '+n)
+            self.panels[n].inbound()
+        for n in selected:
+            child=self.child(o,n)
+            panel=self.panels[n]
+            link=panel.update_expiry(child,o['expiry_ms']) if panel.exists(child) else panel.ensure(child)
+            label=nodes(self.cfg)[n]['label']
+            link=link.split('#',1)[0]+'#'+quote(label+' 🥶ReVPN')
+            self.s.db.execute('INSERT INTO allocations(order_id,node_id,link,quota) VALUES(?,?,?,?) ON CONFLICT(order_id,node_id) DO UPDATE SET link=excluded.link',
+                              (o['id'],n,link,child['quota_bytes']))
+        return self.cfg['subscription']['public_base'].rstrip('/')+'/sub/'+o['sub_id']
+
     def revoke(self,o):
         if o.get('product')=='mtproto': return
         for n in self.selected(o):

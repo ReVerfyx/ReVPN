@@ -149,6 +149,11 @@ class PanelTests(unittest.TestCase):
         if path.startswith('panel/api/inbounds/get/'): return self.inbound
         if path=='panel/api/clients/add':
             self.assertEqual(data['inboundIds'],[1]); self.inbound['settings']['clients'].append(data['client']); return None
+        if path.startswith('panel/api/clients/update/'):
+            for i,client in enumerate(self.inbound['settings']['clients']):
+                if client.get('email')==self.o['email']:
+                    self.inbound['settings']['clients'][i]=data.copy(); return None
+            raise AssertionError('missing client')
         raise AssertionError(path)
     def test_modern_api_and_link(self):
         with patch.object(self.panel,'request',side_effect=self.fake_request):
@@ -157,6 +162,33 @@ class PanelTests(unittest.TestCase):
             self.assertEqual(self.inbound['settings']['clients'][0]['totalGB'],100*1024**3)
             self.panel.ensure(self.o)
             self.assertEqual(len(self.inbound['settings']['clients']),1)
+    def test_modern_update_expiry(self):
+        with patch.object(self.panel,'request',side_effect=self.fake_request):
+            self.panel.ensure(self.o)
+            new_expiry=self.o['expiry_ms']+60000
+            self.panel.update_expiry(self.o,new_expiry)
+            client=self.inbound['settings']['clients'][0]
+            self.assertEqual(client['expiryTime'],new_expiry)
+            self.assertTrue(client['enable'])
+
+    def test_legacy_update_expiry(self):
+        def legacy(path,method='GET',data=None,form=False):
+            if path=='panel/api/clients/add': raise APIError('panel',404)
+            if path.startswith('panel/api/clients/update/'): raise APIError('panel',404)
+            if path=='panel/api/inbounds/addClient':
+                self.inbound['settings']['clients'].extend(json.loads(data['settings'])['clients']); return None
+            if path.startswith('panel/api/inbounds/updateClient/'):
+                self.assertTrue(form)
+                updated=json.loads(data['settings'])['clients'][0]
+                self.inbound['settings']['clients']=[updated]
+                return None
+            return self.fake_request(path,method,data,form)
+        with patch.object(self.panel,'request',side_effect=legacy):
+            self.panel.ensure(self.o)
+            new_expiry=self.o['expiry_ms']+120000
+            self.panel.update_expiry(self.o,new_expiry)
+            self.assertEqual(self.inbound['settings']['clients'][0]['expiryTime'],new_expiry)
+
     def test_legacy_api(self):
         def legacy(path,method='GET',data=None,form=False):
             if path=='panel/api/clients/add': raise APIError('panel',404)

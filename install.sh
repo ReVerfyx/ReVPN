@@ -16,7 +16,7 @@ python3 - "$src_dir" <<'PYCHECK'
 import sys
 from pathlib import Path
 root=Path(sys.argv[1])
-for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','mtproto_service.py','setup.py'):
+for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','events.py','mtproto_service.py','setup.py'):
     compile((root/name).read_text(),str(root/name),'exec')
 sys.path.insert(0,str(root))
 if Path('/etc/revpn-shop/config.json').is_file():
@@ -27,7 +27,7 @@ PYCHECK
 if systemctl is-active --quiet revpn-shop; then systemctl stop revpn-shop; fi
 if ! id revpnshop >/dev/null 2>&1; then useradd --system --home /var/lib/revpn-shop --shell /usr/sbin/nologin revpnshop; fi
 install -d -m 755 /opt/revpn-shop
-for file in bot.py core.py providers.py delivery.py subscriptions.py mtproto_service.py setup.py config.example.json; do
+for file in bot.py core.py providers.py delivery.py subscriptions.py events.py mtproto_service.py setup.py config.example.json; do
   if [[ "$src_dir/$file" != "/opt/revpn-shop/$file" ]]; then install -m 644 "$src_dir/$file" "/opt/revpn-shop/$file"; fi
 done
 install -d -o revpnshop -g revpnshop -m 700 /var/lib/revpn-shop
