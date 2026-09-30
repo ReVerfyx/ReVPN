@@ -194,7 +194,9 @@ class EventService:
 
     def _auth(self, init_data, now=None):
         uid, name = validate_init_data(init_data, self.bot_token, now)
-        self.store.display_name(uid, name)
+        current = self.db.execute("SELECT display_name FROM users WHERE id=?", (uid,)).fetchone()
+        if current is None or current[0] != name:
+            self.store.display_name(uid, name)
         return uid
 
     def _ensure_user(self, uid, now_ms):
