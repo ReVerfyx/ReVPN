@@ -57,40 +57,32 @@ def main():
             mt['public_host']=sub_host
             changed=True
 
-        if sub_host and any(mt.get(k,{}).get('enabled') for k in ('paid','free')):
+        if any(mt.get(k,{}).get('enabled') for k in ('paid','free')):
             defaults={
                 'paid': ('www.microsoft.com',2443),
                 'free': ('www.cloudflare.com',3443),
             }
-            for kind,(sni,internal_port) in defaults.items():
+            for kind,(sni,default_port) in defaults.items():
                 sec=mt.setdefault(kind,{})
-                sec.setdefault('port',internal_port)
-                if sec.get('public_port')!=443:
-                    sec['public_port']=443; changed=True
+                sec.setdefault('port',default_port)
+                if sec.get('public_port')!=sec.get('port'):
+                    sec['public_port']=sec.get('port'); changed=True
                 if sec.get('transport')!='fake_tls':
                     sec['transport']='fake_tls'; changed=True
                 if not sec.get('tls_domain'):
                     sec['tls_domain']=sni; changed=True
-            edge=cfg.setdefault('edge443',{})
-            wanted={
-                'enabled':True,
-                'listen_host':'0.0.0.0',
-                'listen_port':443,
-                'web_backend_port':4443,
-                'web_sni':sub_host,
-                'free_sni':mt['free'].get('tls_domain') or 'www.cloudflare.com',
-                'paid_sni':mt['paid'].get('tls_domain') or 'www.microsoft.com',
-            }
-            for key,value in wanted.items():
-                if edge.get(key)!=value:
-                    edge[key]=value; changed=True
+
+        edge=cfg.setdefault('edge443',{})
+        if edge.get('enabled'):
+            edge['enabled']=False
+            changed=True
 
         if changed:
             temp=path.with_suffix('.tmp')
             temp.write_text(json.dumps(cfg,ensure_ascii=False,indent=2)+'\n')
             os.chmod(temp,0o600)
             temp.replace(path)
-            print('Настройки обновлены: MTProto переведён на FakeTLS/443 через ReVPN edge.')
+            print('Настройки обновлены: сайт остаётся напрямую на nginx:443; MTProto использует отдельные порты.')
         else:
             print('Настройки сохранены. Новые счета — только реальные.')
         return
