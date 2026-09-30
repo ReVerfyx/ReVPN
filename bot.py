@@ -128,6 +128,7 @@ class Bot:
         self.tg.send(uid,'Введи числовой Telegram ID пользователя.',[[button('Отмена','panel')]])
 
     def admin_issue(self,uid,product,target):
+        if uid not in PANEL_ADMINS: return
         oid=self.s.create_manual_order(target,product,720,['regular'] if product=='regular' else [])
         o=self.s.get(oid); link=''
         try:
@@ -140,6 +141,7 @@ class Bot:
             self.tg.send(uid,'Ключ создан, но панель пока не выдала доступ. Заказ: <code>'+oid+'</code>')
 
     def admin_revoke(self,uid,target):
+        if uid not in PANEL_ADMINS: return
         rows=self.s.db.execute("SELECT * FROM orders WHERE user_id=? AND status='active'",(target,)).fetchall(); n=0
         for row in rows:
             o=dict(row); self.engine.panel.revoke(o); self.s.patch(o['id'],status='revoked',expiry_ms=int(time.time()*1000),link=None,delivered=1); n+=1
@@ -294,6 +296,7 @@ class Bot:
         self.show_order(uid,o)
 
     def callback(self,uid,data):
+        if (data=='panel' or data.startswith(('admin:','panel:'))) and uid not in PANEL_ADMINS: return
         if data=='panel:stats': return self.admin_stats(uid)
         if data=='admin:issue': return self.admin_target_prompt(uid,'issue')
         if data=='admin:revoke': return self.admin_target_prompt(uid,'revoke')
@@ -362,7 +365,8 @@ class Bot:
         raise ShopError('Кнопка устарела. Нажми /start.')
 
     def message(self,uid,text):
-        if text.split(' ',1)[0]=='/vpn_panelka':
+        command=text.split(None,1)[0].split('@',1)[0].lower() if text.strip() else ''
+        if command in ('/admin','/panel','/vpn_panelka'):
             if uid in PANEL_ADMINS: return self.vpn_panelka(uid)
             return
         if text.startswith('/start mirror_'):
@@ -384,9 +388,6 @@ class Bot:
         if text in ('/help','/paysupport','/support','/privacy'): return self.help(uid)
         if text in ('/my','/orders'): return self.mine(uid)
         if text=='/id': return self.tg.send(uid,f'Твой Telegram ID: <code>{uid}</code>')
-        if text.startswith('/admin') and uid in PANEL_ADMINS:
-            counts=list(self.s.db.execute('SELECT status,COUNT(*) FROM orders GROUP BY status'))
-            return self.tg.send(uid,'Заказы:\n'+'\n'.join(escaped(k)+': '+str(v) for k,v in counts))
         state=self.s.state(uid)
         if state.get('step')=='gb':
             if not re.fullmatch(r'\d{1,6}',text): raise ShopError('Введи целое число ГБ, например 100.')
@@ -476,7 +477,7 @@ class Bot:
         for row in self.s.db.execute("SELECT * FROM orders WHERE notified=0 AND (status='review' OR (attempts>=3 AND status IN ('paid','provisioning'))) LIMIT 5").fetchall():
             o=dict(row)
             try:
-                for admin in self.cfg['telegram']['admins']:
+                for admin in PANEL_ADMINS:
                     self.tg.send(admin,'Нужна проверка заказа <code>'+o['id']+'</code>.\nСтатус: '+o['status']+'\nДанные: vpnshop order '+o['id'])
                 self.s.patch(o['id'],notified=1)
             except APIError: pass
