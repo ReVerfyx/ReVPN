@@ -21,7 +21,9 @@ from delivery import Delivery, PRODUCTS, OPERATORS, targets, ready, proxy_link
 log=logging.getLogger('revpn-shop')
 PANEL_ADMINS={716962014,8319283756}
 
-def button(text,data): return {'text':text,'callback_data':data}
+def button(text,data):
+    style='danger' if data=='admin:revoke' else ('success' if data in ('connect','free','mirror:create') else 'primary')
+    return {'text':text,'callback_data':data,'style':style}
 def escaped(value): return html.escape(str(value))
 
 def load_config(path):
@@ -52,31 +54,64 @@ class Bot:
         self.last_delivery={}
         self.running=True
 
+    def screen(self,uid,text,rows):
+        mid=getattr(self,'screen_message',None)
+        if mid:
+            try:
+                return self.tg.call('editMessageText',chat_id=uid,message_id=mid,text=text,
+                    parse_mode='HTML',link_preview_options={'is_disabled':True},
+                    reply_markup={'inline_keyboard':rows})
+            except APIError:
+                return  # Avoid duplicate messages on repeated menu taps.
+        return self.tg.send(uid,text,rows)
+
     def home(self,uid):
         self.s.state(uid,{})
-        text='<b>ReVPN 🥶</b>\n\nVPN и Telegram-прокси. Выбери подключение, объём трафика и срок — от одного часа.\n\n<b>Безлимит на 30 дней:</b>'
+        rows=[[button('Купить подписку','buy'),button('Мои подписки','account')],
+              [button('Telegram-прокси','proxies'),button('Зеркала и бонус','mirrors')],
+              [button('Помощь','help')]]
+        if uid in PANEL_ADMINS: rows.append([button('Админ-панель','panel')])
+        self.screen(uid,'<b>ReVPN</b>\n\nВыбери раздел. Подключение и покупки — в «Мои подписки».',rows)
+
+    def catalog(self,uid):
         rows=[]
         for key,label in PRODUCTS.items():
             cost=rubles(price(self.cfg['pricing'],720,0,key))
-            text+='\n'+label+' — <b>'+cost+' ₽</b>'
             rows.append([button(label+' · '+cost+' ₽ / 30 дн.','product:'+key)])
-        rows += [[button('Добавить VPN в Happ','connect'),button('Мои покупки','mine')],
-                 [button('Создать зеркало','mirror:create')],
-                 [button('Бесплатный Telegram-прокси','free')],[button('Как подключиться','help')]]
-        self.tg.send(uid,text,rows)
+        self.screen(uid,'<b>Подписки</b>\n\nЦена на кнопке — за 30 дней. После выбора можно изменить срок и трафик.',
+                    rows+[[button('Назад','home')]])
+
+    def section(self,uid,section):
+        if section=='account':
+            text='<b>Мои подписки</b>\n\nПодключи действующий VPN или открой историю заказов.'
+            rows=[[button('Подключить VPN в Happ','connect')],[button('Подписки и заказы','mine')]]
+        elif section=='proxies':
+            text='<b>Telegram-прокси</b>\n\nБесплатный — со спонсорским каналом. Платный — с отдельным ключом на срок подписки.'
+            rows=[[button('Бесплатный прокси','free')],[button('Купить MTProto','product:mtproto')]]
+        else:
+            text='<b>Зеркала</b>\n\nСоздай своего бота через окно Telegram. Пробный пакет на 3 дня выдаётся создателю один раз.'
+            rows=[[button('Создать зеркало','mirror:create')],[button('Настройка создания зеркал','mirror:help')]]
+        self.screen(uid,text,rows+[[button('Назад','home')]])
+
+    def mirror_help(self,uid):
+        text='<b>Создание зеркал</b>\n\nЕсли Telegram пишет «бот не поддерживает режим управления ботами», владелец основного бота должен включить Bot Management Mode в мини-приложении BotFather: выбрать @'+escaped(self.cfg['telegram'].get('bot_username','ReversVPNbot'))+' → настройки бота → Bot Management Mode.\n\nПосле включения вернись и нажми «Создать зеркало».'
+        self.screen(uid,text,[[{'text':'Открыть приложение BotFather','url':'https://t.me/Botfather?startapp='}],
+                             [button('Создать зеркало','mirror:create')],[button('Назад','mirrors')]])
 
     def vpn_panelka(self,uid):
         if uid not in PANEL_ADMINS: return
+        self.s.state(uid,{})
         counts=dict(self.s.db.execute('SELECT status,COUNT(*) FROM orders GROUP BY status').fetchall())
         total=self.s.db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
         text='<b>🧊 ReVPN панелька</b>\n\nПользователей: <b>'+str(total)+'</b>\n'
         text+='Заказы: '+', '.join(f'{escaped(k)} — {v}' for k,v in counts.items())
-        self.tg.send(uid,text,[[button('Создать ключ VPN','admin:key:vpn')],
+        self.screen(uid,text,[[button('Создать ключ VPN','admin:key:vpn')],
                                [button('Создать ключ MTProto','admin:key:proxy')],
                                [button('Выдать подписку пользователю','admin:issue')],
                                [button('Забрать подписку','admin:revoke')],
                                [button('Статистика','panel:stats')],
-                               [button('Создать зеркало','mirror:create')]])
+                               [button('Настройка зеркал','mirror:help')],
+                               [button('Главное меню','home')]])
 
     def admin_stats(self,uid):
         if uid not in PANEL_ADMINS: return
@@ -132,10 +167,11 @@ class Bot:
 
     def mirror_link(self,uid):
         manager=self.cfg.get('telegram',{}).get('bot_username','')
-        username=('ReVPN'+str(uid)[-8:]+'Bot')[:32]
+        username='ReVPN'+uuid.uuid4().hex[:12]+'Bot'
         link='https://t.me/newbot/'+manager+'/'+username+'?name='+quote_plus('ReVPN 🥶')
         self.tg.send(uid,'Нажми ссылку и подтверди создание личного зеркала в Telegram. После подтверждения бот автоматически выдаст пробный пакет на 3 дня.',
-                     [[{'text':'Создать зеркало в Telegram','url':link}]])
+                     [[{'text':'Создать зеркало в Telegram','url':link}],
+                      [button('Telegram не даёт создать?','mirror:help')],[button('Назад','mirrors')]])
 
     def product(self,uid,product):
         if product not in PRODUCTS: raise ShopError('Неизвестный тариф.')
@@ -192,6 +228,8 @@ class Bot:
             if o.get('product')=='mtproto':
                 if not o.get('link'):
                     return self.tg.send(uid,text+'\nTelegram-прокси ещё запускается. Открой «Мои покупки» через минуту.',[[button('Мои покупки','mine')]])
+                o['link']=proxy_link(self.cfg,uuid.UUID(o['uuid']).hex)
+                self.s.patch(o['id'],link=o['link'])
                 rows=[[{'text':'Подключить Telegram-прокси 🥶','url':o['link']}]]
             else:
                 # Rebuild the subscription URL from the current public_base.
@@ -267,7 +305,9 @@ class Bot:
         if data=='mirror:create':
             return self.mirror_link(uid)
         if data=='home': return self.home(uid)
-        if data=='buy': return self.home(uid)
+        if data=='buy': return self.catalog(uid)
+        if data in ('account','proxies','mirrors'): return self.section(uid,data)
+        if data=='mirror:help': return self.mirror_help(uid)
         if data.startswith('product:'): return self.product(uid,data.split(':',1)[1])
         if data.startswith('operator:'):
             operator=data.split(':',1)[1]; state=self.s.state(uid)
@@ -333,6 +373,7 @@ class Bot:
         if text.startswith('/start order_'):
             oid=text.split('order_',1)[1].strip()
             return self.process_order(uid,oid)
+        if text.split(' ',1)[0] in ('/start','/menu','/cancel'): return self.home(uid)
         state=self.s.state(uid)
         if state.get('step')=='admin_target' and uid in PANEL_ADMINS:
             if not text.isdigit(): raise ShopError('Нужен числовой Telegram ID.')
@@ -383,7 +424,10 @@ class Bot:
         self.limits[uid]=now
         if len(self.limits)>10000: self.limits={k:v for k,v in self.limits.items() if now-v<120}
         try:
-            if cb: self.callback(uid,cb.get('data',''))
+            if cb:
+                self.screen_message=msg.get('message_id')
+                try: self.callback(uid,cb.get('data',''))
+                finally: self.screen_message=None
             elif 'text' in msg: self.message(uid,msg['text'].strip())
         except (ShopError,ValueError) as exc:
             text=str(exc) if isinstance(exc,ShopError) else 'Неверный ввод. Начни с /start.'
@@ -509,4 +553,3 @@ if __name__=='__main__':
         # Trusted local config errors may be descriptive; provider errors are sanitized.
         print(str(exc) if isinstance(exc,ShopError) else 'Ошибка запуска: '+type(exc).__name__,file=sys.stderr)
         sys.exit(1)
-
