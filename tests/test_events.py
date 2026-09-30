@@ -121,6 +121,7 @@ class EventTests(unittest.TestCase):
         order=self.service.store.get(first_order,77)
         first_expiry=order["expiry_ms"]
         self.assertTrue(order["quote_id"].startswith("event-"))
+        self.assertEqual(order["delivered"],1)
         self.assertEqual(
             self.service.db.execute("SELECT COUNT(*) FROM allocations WHERE order_id=?",(first_order,)).fetchone()[0],
             1,
