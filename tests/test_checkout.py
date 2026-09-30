@@ -99,3 +99,26 @@ class CheckoutTests(unittest.TestCase):
     def test_repeat_confirm_keeps_same_invoice(self):
         self.b.callback(1,'confirm:'+self.q);self.b.callback(1,'confirm:'+self.q)
         self.assertEqual(self.pay.created,1)
+
+
+class AdminAccessTests(CheckoutTests):
+    def test_commands_are_silent_for_config_admin_outside_allowlist(self):
+        self.cfg['telegram']['admins']=[1]
+        self.s.state(1,{'step':'gb'})
+        for command in ('/admin','/admin@ReversVPNbot','/panel','/vpn_panelka','/ADMIN ignored'):
+            self.b.message(1,command)
+        self.assertEqual(self.tg.messages,[])
+
+    def test_direct_mutations_reject_unauthorized_actor(self):
+        before=self.s.db.execute('SELECT COUNT(*) FROM orders').fetchone()[0]
+        with patch.object(self.e.panel,'ensure',side_effect=AssertionError('must not provision')):
+            self.b.admin_issue(1,'regular',2)
+            self.b.admin_revoke(1,2)
+        self.assertEqual(self.s.db.execute('SELECT COUNT(*) FROM orders').fetchone()[0],before)
+        self.assertEqual(self.tg.messages,[])
+
+    def test_admin_aliases_open_panel_for_both_owners(self):
+        for uid in (716962014,8319283756):
+            for command in ('/admin','/panel','/vpn_panelka@ReversVPNbot'):
+                self.b.message(uid,command)
+                self.assertIn('Создать ключ VPN',str(self.tg.messages[-1]))
