@@ -67,7 +67,8 @@ class Bot:
 
     def home(self,uid):
         self.s.state(uid,{})
-        rows=[[button('Купить подписку','buy'),button('Мои подписки','account')],
+        rows=[[{'text':'Открыть Mini App','web_app':{'url':self.cfg['subscription']['public_base'].rstrip('/')+'/app'}}],
+              [button('Купить подписку','buy'),button('Мои подписки','account')],
               [button('Telegram-прокси','proxies'),button('Зеркала и бонус','mirrors')],
               [button('Помощь','help')]]
         if uid in PANEL_ADMINS: rows.append([button('Админ-панель','panel')])
@@ -276,13 +277,17 @@ class Bot:
         labels={'active':'Выдан','pending':'Ждёт оплаты','creating':'Создание счёта','expired':'Счёт истёк','paid':'Оплачен','provisioning':'Выдача','test_paid':'Тест оплачен','review':'Проверка'}
         self.tg.send(uid,'Последние покупки:',[[button(labels.get(o['status'],o['status'])+' · '+description(o['hours'],o['gb']), 'view:'+o['id'])] for o in orders])
 
+    def privacy(self,uid):
+        self.tg.send(uid,'<b>Политика конфиденциальности ReVPN</b>\nКакие данные обрабатываем, зачем и как обратиться за удалением — на странице:',
+            [[{'text':'Политика конфиденциальности','url':self.cfg['subscription']['public_base'].rstrip('/')+'/privacy'}],
+             [button('Назад','help')]])
+
     def help(self,uid):
-        self.tg.send(uid,'После оплаты нажми «Добавить подписку в Happ». Она содержит все купленные профили.\n'
-          'Срок и трафик указаны перед оплатой. Повторная покупка выдаёт новый ключ.\n'
-          'Проверка платежа выполняется через Lolz API; чек или сообщение не подтверждают оплату.\n'
-          'Поддержка и возвраты: '+escaped(self.cfg['telegram']['support'])+'\n'
-          'При проблеме пришли поддержке номер заказа из «Мои покупки».\n'
-          'Храним Telegram ID, параметры заказов и ключи для повторной выдачи. Банковские данные бот не получает.',[[button('Главное меню','home')]])
+        base=self.cfg['subscription']['public_base'].rstrip('/')
+        self.screen(uid,'<b>Помощь ReVPN</b>\n\n<b>Как подключиться</b>\nОткрой «Мои подписки» → выбери покупку → «Добавить VPN в Happ». Для прокси нажми кнопку подключения Telegram.\n\n<b>Оплата и поддержка</b>\nЕсли оплата или подключение не работают, пришли в поддержку номер заказа.',
+            [[{'text':'Написать в поддержку','url':'https://t.me/'+self.cfg['telegram']['support'].lstrip('@')}],
+             [{'text':'Политика конфиденциальности','url':base+'/privacy'}],
+             [button('Мои подписки','account'),button('Главное меню','home')]])
 
     def process_order(self,uid,oid):
         self.s.get(oid,uid)
@@ -369,6 +374,13 @@ class Bot:
         if command in ('/admin','/panel','/vpn_panelka'):
             if uid in PANEL_ADMINS: return self.vpn_panelka(uid)
             return
+        if command=='/privacy': return self.privacy(uid)
+        if text.startswith('/start app_'):
+            choice=text.split('app_',1)[1].strip()
+            if choice in PRODUCTS: return self.product(uid,choice)
+            if choice=='account': return self.section(uid,'account')
+            if choice=='free': return self.callback(uid,'free')
+            return self.home(uid)
         if text.startswith('/start mirror_'):
             token=text.split('mirror_',1)[1].strip()
             row=self.s.db.execute('SELECT owner_id FROM mirrors WHERE token=?',(token,)).fetchone()
