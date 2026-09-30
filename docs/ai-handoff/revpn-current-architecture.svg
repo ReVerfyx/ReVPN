@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#06101b"/><stop offset="1" stop-color="#0c1f34"/></linearGradient>
+  <linearGradient id="ice" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#b7e8ff"/><stop offset="1" stop-color="#5fb8f5"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#000" flood-opacity=".35"/></filter>
+</defs>
+<rect width="1400" height="900" fill="url(#bg)"/>
+<text x="70" y="75" fill="#f5f9ff" font-family="Arial,sans-serif" font-size="42" font-weight="700">ReVPN — current architecture</text>
+<text x="70" y="115" fill="#8fa4bc" font-family="Arial,sans-serif" font-size="22">Website restored to original nginx :443 layout; MTProto kept on separate ports</text>
+
+<g filter="url(#shadow)">
+  <rect x="70" y="180" rx="28" ry="28" width="1260" height="150" fill="#10243a" stroke="#66c7ff" stroke-opacity=".35"/>
+  <rect x="95" y="210" rx="18" width="240" height="90" fill="url(#ice)"/>
+  <text x="215" y="250" text-anchor="middle" fill="#07111a" font-family="Arial,sans-serif" font-size="26" font-weight="700">revpn.work.gd</text>
+  <text x="215" y="280" text-anchor="middle" fill="#17344d" font-family="Arial,sans-serif" font-size="20">public HTTPS :443</text>
+  <path d="M335 255 H505" stroke="#7bd1ff" stroke-width="5"/>
+  <polygon points="505,255 485,243 485,267" fill="#7bd1ff"/>
+  <rect x="520" y="210" rx="18" width="245" height="90" fill="#0a1725" stroke="#7bd1ff" stroke-opacity=".45"/>
+  <text x="642" y="250" text-anchor="middle" fill="#f4f9ff" font-family="Arial,sans-serif" font-size="28" font-weight="700">nginx</text>
+  <text x="642" y="280" text-anchor="middle" fill="#91a7bf" font-family="Arial,sans-serif" font-size="19">TLS / reverse proxy</text>
+  <path d="M765 255 H940" stroke="#7bd1ff" stroke-width="5"/>
+  <polygon points="940,255 920,243 920,267" fill="#7bd1ff"/>
+  <rect x="955" y="210" rx="18" width="330" height="90" fill="#0a1725" stroke="#7bd1ff" stroke-opacity=".45"/>
+  <text x="1120" y="247" text-anchor="middle" fill="#f4f9ff" font-family="Arial,sans-serif" font-size="25" font-weight="700">revpn-subscriptions</text>
+  <text x="1120" y="280" text-anchor="middle" fill="#91a7bf" font-family="Arial,sans-serif" font-size="19">127.0.0.1:8090 · /app · /privacy</text>
+</g>
+
+<g filter="url(#shadow)">
+  <rect x="70" y="385" rx="28" width="600" height="195" fill="#0b1827" stroke="#88d8ff" stroke-opacity=".28"/>
+  <text x="105" y="430" fill="#77cfff" font-family="Arial,sans-serif" font-size="20" font-weight="700">FREE MTPROTO</text>
+  <text x="105" y="470" fill="#f4f9ff" font-family="Arial,sans-serif" font-size="32" font-weight="700">revpn.work.gd:3443</text>
+  <text x="105" y="508" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">FakeTLS; sponsor tag only here</text>
+  <text x="105" y="545" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">Service: revpn-mtproto-free</text>
+  <circle cx="610" cy="482" r="28" fill="#69e6b1" opacity=".2"/>
+  <path d="M594 482l10 10 22-26" fill="none" stroke="#69e6b1" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<g filter="url(#shadow)">
+  <rect x="730" y="385" rx="28" width="600" height="195" fill="#0b1827" stroke="#aa9cff" stroke-opacity=".28"/>
+  <text x="765" y="430" fill="#aea2ff" font-family="Arial,sans-serif" font-size="20" font-weight="700">PAID MTPROTO</text>
+  <text x="765" y="470" fill="#f4f9ff" font-family="Arial,sans-serif" font-size="32" font-weight="700">revpn.work.gd:2443</text>
+  <text x="765" y="508" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">Unique secret per order; exact expiry</text>
+  <text x="765" y="545" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">Service: revpn-mtproto-paid</text>
+  <circle cx="1270" cy="482" r="28" fill="#aa9cff" opacity=".18"/>
+  <path d="M1254 482l10 10 22-26" fill="none" stroke="#c6bdff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+
+<g filter="url(#shadow)">
+  <rect x="70" y="635" rx="28" width="1260" height="180" fill="#0d1d2d" stroke="#ffffff" stroke-opacity=".08"/>
+  <text x="105" y="680" fill="#f4f9ff" font-family="Arial,sans-serif" font-size="27" font-weight="700">Mini App / Event Hub</text>
+  <text x="105" y="722" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">1000 rotating events · 60 min active + 10 min break · server-side Telegram initData auth</text>
+  <text x="105" y="760" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">Games: tap rush · catch snowflake · reaction · break crystal</text>
+  <text x="105" y="798" fill="#91a7bf" font-family="Arial,sans-serif" font-size="20">Rewards: VPN seconds · bonus rubles · mixed · SQLite wallet · anti-autoclicker / nonce / challenge</text>
+</g>
+
+<text x="70" y="860" fill="#61758d" font-family="Arial,sans-serif" font-size="18">edge443 code remains optional/disabled. Do not move the website off nginx :443 unless the owner explicitly asks.</text>
+</svg>
