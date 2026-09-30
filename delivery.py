@@ -34,7 +34,10 @@ def targets(cfg,product,operator=''):
 
 def proxy_link(cfg,secret,kind='paid'):
     section=cfg['mtproto'][kind]
-    return 'https://t.me/proxy?'+urlencode({'server':cfg['mtproto']['public_host'],'port':section['port'],'secret':'dd'+secret})
+    host=cfg['mtproto'].get('public_host','')
+    # Migrate this installation's legacy address; preserve other deployments.
+    if host=='2.26.85.86': host='revpn.work.gd'
+    return 'https://t.me/proxy?'+urlencode({'server':host,'port':section['port'],'secret':'dd'+secret})
 
 def ready(data,kind,oid=None):
     try:
@@ -89,4 +92,3 @@ class Delivery:
                 try: panel.remove(self.child(o,n))
                 except Exception: pass
         self.s.db.execute('DELETE FROM allocations WHERE order_id=?',(o['id'],))
-
