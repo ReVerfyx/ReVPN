@@ -122,3 +122,28 @@ class AdminAccessTests(CheckoutTests):
             for command in ('/admin','/panel','/vpn_panelka@ReversVPNbot'):
                 self.b.message(uid,command)
                 self.assertIn('Создать ключ VPN',str(self.tg.messages[-1]))
+
+class PublicWebTests(unittest.TestCase):
+    def test_pages_work_without_order_database(self):
+        import threading
+        import urllib.request
+        from http.server import HTTPServer
+        from subscriptions import handler
+        cfg=json.loads(Path('config.example.json').read_text())
+        cfg['pricing']['unlimited_30d_rub']=77
+        server=HTTPServer(('127.0.0.1',0),handler(Path('/nonexistent/orders.sqlite'),'https://revpn.work.gd','@ReversVPNsupport',cfg))
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+        try:
+            opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            for route in ('/privacy','/app'):
+                with opener.open('http://127.0.0.1:'+str(server.server_port)+route) as response:
+                    text=response.read().decode()
+                    self.assertEqual(response.status,200)
+                    self.assertNotIn(cfg['telegram']['token'],text)
+                    self.assertIn('Политика конфиденциальности',text)
+                    if route=='/app':
+                        self.assertIn('77 ₽',text)
+                        self.assertIn('?start=app_regular',text)
+                        self.assertIn('https://telegram.org',response.headers['Content-Security-Policy'])
+        finally:
+            server.shutdown();thread.join();server.server_close()
