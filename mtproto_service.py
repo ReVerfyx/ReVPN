@@ -77,10 +77,14 @@ def run(cfg, data, kind):
                             child.kill()
                             child.wait()
 
+                    tls_domain = (section.get('tls_domain') or cfg['mtproto'].get('public_host','')).strip()
+                    modes = {"classic": False, "secure": True, "tls": kind == 'free'}
                     config_path.write_text(
                         'PORT = ' + repr(section['port']) + '\n'
                         'USERS = ' + repr(users) + '\n'
-                        'MODES = {"classic": False, "secure": True, "tls": False}\n'
+                        'MODES = ' + repr(modes) + '\n'
+                        'TLS_DOMAIN = ' + repr(tls_domain) + '\n'
+                        'MASK_HOST = ' + repr(tls_domain) + '\n'
                         'AD_TAG = ' + repr(section.get('ad_tag', '') if kind == 'free' else '') + '\n'
                     )
                     os.chmod(config_path, 0o600)
