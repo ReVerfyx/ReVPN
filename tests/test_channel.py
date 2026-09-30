@@ -34,7 +34,8 @@ class ChannelTests(unittest.TestCase):
         opener=MagicMock();opener.open.return_value.__enter__.return_value=io.BytesIO(json.dumps({'done':True,'response':'Разработчики обновили приложение. Пользователям стала доступна новая функция.'}).encode())
         with patch('channel_agent.urllib.request.build_opener',return_value=opener):
             text=generate({**DEFAULT,'api_hash':'SECRET_DO_NOT_SEND'},article)
-        self.assertIn('🔗 Источник: https://example.org/story',text)
+        self.assertNotIn('https://',text)
+        self.assertNotIn('Источник:',text)
         payload=json.loads(opener.open.call_args.args[0].data)
         self.assertNotIn('SECRET_DO_NOT_SEND',str(payload))
         self.assertFalse(payload['think']);self.assertFalse(payload['stream'])
@@ -81,3 +82,51 @@ class SummaryCleanupTests(unittest.TestCase):
     def test_non_russian_is_distinct_error(self):
         with self.assertRaisesRegex(ValueError,'не на русском'):
             clean_summary('A new application is released',{'url':'https://habr.com/ru/news/123/'})
+
+class PhotoEditorialTests(unittest.TestCase):
+    def test_migration_preserves_identity_and_custom_feeds(self):
+        from channel_agent import migrate_config
+        old={'channel_id':-100123,'model':'custom','style':'до 600 символов','feeds':['https://custom.example/rss']}
+        new=migrate_config(old)
+        self.assertEqual(new['channel_id'],-100123)
+        self.assertEqual(new['model'],'custom')
+        self.assertIn('https://custom.example/rss',new['feeds'])
+        self.assertEqual(len(new['feeds']),5)
+        self.assertNotIn('600',new['style'])
+        self.assertFalse(new['show_source'])
+        self.assertEqual(new['interval_hours'],1)
+        self.assertEqual(migrate_config(new),new)
+    def test_rss_images_and_private_urls(self):
+        from channel_news import public_image
+        raw=ChannelTests().feed().replace(b'<p>',b'<img src="https://images.example/photo.jpg"><p>')
+        self.assertEqual(parse_feed(raw)[0]['photo'],'https://images.example/photo.jpg')
+        self.assertEqual(public_image('https://127.0.0.1/image.jpg','https://example.org'),'')
+        self.assertEqual(public_image('/photo.jpg','https://example.org/news'),'https://example.org/photo.jpg')
+    def test_long_photo_retry_keeps_photo_checkpoint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));row=reserve(db,-100123,'Заголовок 🥶\n\n'+('Подробности новости. '*100),'source','https://example.org/p.jpg')
+            client=MagicMock();client.photo.return_value={'message_id':41};client.send.side_effect=BotError(429,30)
+            with self.assertRaises(BotError): deliver(db,client,row)
+            self.assertEqual(pending_post(db,-100123)['photo_message_id'],41)
+            client.send.side_effect=None;client.send.return_value={'message_id':42}
+            deliver(db,client,row)
+            self.assertEqual(client.photo.call_count,1)
+            self.assertEqual(db.execute('SELECT status FROM posts').fetchone()[0],'sent');db.close()
+    def test_short_caption_single_message_and_utf16(self):
+        from channel_agent import heading_entities,photo_parts
+        self.assertEqual(heading_entities('🥶 Заголовок\nТекст')[0]['length'],12)
+        self.assertEqual(photo_parts('🥶'*513),('','🥶'*513))
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));row=reserve(db,-100123,'Заголовок\n\nТекст','s','https://example.org/p.jpg')
+            client=MagicMock();client.photo.return_value={'message_id':1}
+            deliver(db,client,row);client.send.assert_not_called();db.close()
+    def test_photo_timeout_remains_uncertain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));row=reserve(db,-100123,'Текст','s','https://example.org/p.jpg')
+            client=MagicMock();client.photo.side_effect=BotError()
+            with self.assertRaises(BotError): deliver(db,client,row)
+            self.assertEqual(db.execute('SELECT status FROM posts').fetchone()[0],'uncertain');db.close()
+    def test_require_photo_skips_imageless(self):
+        opener=MagicMock();opener.open.return_value.__enter__.return_value=io.BytesIO(ChannelTests().feed())
+        with patch('channel_news.urllib.request.build_opener',return_value=opener):
+            self.assertIsNone(fetch_news(['https://example.org/rss'],require_photo=True))

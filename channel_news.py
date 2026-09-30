@@ -7,7 +7,8 @@ import hashlib
 import re
 import time
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
+import ipaddress
 import xml.etree.ElementTree as ET
 
 class Plain(HTMLParser):
@@ -22,6 +23,36 @@ class Plain(HTMLParser):
 def plain(value):
     p=Plain();p.feed(value or '')
     return re.sub(r'\s+',' ',unescape(' '.join(p.parts))).strip()
+
+def public_image(value,base):
+    url=urljoin(base,unescape(value or '').strip())
+    p=urlsplit(url)
+    if p.scheme!='https' or not p.hostname or p.username or p.password: return ''
+    if p.hostname.lower()=='localhost' or p.hostname.lower().endswith(('.local','.localhost')): return ''
+    try:
+        if not ipaddress.ip_address(p.hostname).is_global: return ''
+    except ValueError: pass
+    if p.path.lower().endswith(('.svg','.gif','.webp')): return ''
+    return url
+
+class Images(HTMLParser):
+    def __init__(self): super().__init__();self.urls=[]
+    def handle_starttag(self,tag,attrs):
+        a=dict(attrs)
+        if tag=='img':
+            if a.get('width')=='1' or a.get('height')=='1': return
+            self.urls.append(a.get('src') or a.get('data-src',''))
+
+def feed_photo(item,markup,base):
+    candidates=[]
+    for node in item.iter():
+        name=node.tag.rsplit('}',1)[-1]
+        if name in ('enclosure','content','thumbnail'):
+            kind=node.get('type','')
+            if kind.startswith('image/') or node.get('medium')=='image' or name=='thumbnail':
+                candidates.append(node.get('url',''))
+    parser=Images();parser.feed(markup);candidates.extend(parser.urls)
+    return next((url for candidate in candidates if (url:=public_image(candidate,base))), '')
 
 def parse_feed(raw,now=None):
     now=now or time.time()
@@ -49,13 +80,15 @@ def parse_feed(raw,now=None):
         except (ValueError,TypeError,OverflowError): continue
         if not now-48*3600<=stamp<=now+300: continue
         title=plain(value('title'))[:250]
-        body=plain(value('description') or value('summary') or value('encoded') or value('content'))[:2200]
+        markup=value('encoded') or value('content') or value('description') or value('summary')
+        body=plain(markup)[:7000]
+        photo=feed_photo(item,markup,link)
         if not title or len(body)<60: continue
-        result.append({'title':title,'body':body,'url':link,'published':stamp,
+        result.append({'title':title,'body':body,'photo':photo,'url':link,'published':stamp,
                        'key':hashlib.sha256(link.encode()).hexdigest()})
     return result
 
-def fetch_news(feeds,seen=()):
+def fetch_news(feeds,seen=(),require_photo=False):
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
     articles=[]
     for url in feeds:
@@ -67,4 +100,4 @@ def fetch_news(feeds,seen=()):
             articles.extend(parse_feed(raw))
         except Exception: continue
     articles.sort(key=lambda a:a['published'],reverse=True)
-    return next((a for a in articles if a['key'] not in seen),None)
+    return next((a for a in articles if a['key'] not in seen and (a.get('photo') or not require_photo)),None)

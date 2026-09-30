@@ -39,7 +39,10 @@ who=pwd.getpwnam('revpnchannel')
 os.chown(target,who.pw_uid,who.pw_gid);os.chmod(target,0o600)
 path=root/'channel.json'
 if path.exists():
-    settings=json.loads(path.read_text())
+    import sys
+    sys.path.insert(0,'/opt/revpn-channel')
+    from channel_agent import migrate_config
+    settings=migrate_config(json.loads(path.read_text()))
     settings.pop('api_id',None);settings.pop('api_hash',None)
     path.write_text(json.dumps(settings,ensure_ascii=False,indent=2)+'\n')
     os.chown(path,who.pw_uid,who.pw_gid);os.chmod(path,0o600)
