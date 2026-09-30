@@ -40,75 +40,350 @@ def subscription(db,token,now=None):
 def public_page(path,cfg,support):
     from core import price,rubles
     from delivery import PRODUCTS
+    from events import EVENT_CYCLE_SECONDS,event_clock,event_definition
+
     support_url='https://t.me/'+support.lstrip('@')
     bot=cfg.get('telegram',{}).get('bot_username') or 'ReversVPNbot'
     if not re.fullmatch(r'[A-Za-z0-9_]{5,32}',bot): bot='ReversVPNbot'
+
     def link(label,url,cls='button'):
         return '<a class="'+cls+'" href="'+html.escape(url,quote=True)+'">'+html.escape(label)+'</a>'
+
+    def product_icon(key):
+        icons={
+            'regular': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 5 52 12v15c0 15-8 25-20 32C20 52 12 42 12 27V12L32 5Z"/><path d="M24 31l6 6 11-13"/></svg>',
+            'whitelist': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 7v50M10 19l44 26M54 19 10 45"/><circle cx="32" cy="32" r="9"/></svg>',
+            'bundle': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="m32 8 22 12-22 12L10 20 32 8Z"/><path d="m12 31 20 11 20-11M12 42l20 11 20-11"/></svg>',
+            'mtproto': '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 29 55 9 45 55 30 40 21 49l2-15L8 29Z"/><path d="m23 34 22-15"/></svg>',
+        }
+        return icons.get(key,icons['regular'])
+
     privacy=path=='/privacy'
     title='Политика конфиденциальности' if privacy else 'ReVPN — подключайся проще'
+
     if privacy:
-        content='<span class="eyebrow">ReVPN · редакция от 30.09.2026</span><h1>Политика конфиденциальности</h1>\n<p>Эта страница описывает обработку данных в боте ReVPN, его Mini App и сервисе VPN/MTProto. По вопросам обработки данных отвечает команда ReVPN через поддержку ниже.</p>\n<h2>Какие данные обрабатываются</h2><p>Telegram ID, отображаемое имя, выбранный тариф и оператор, состояние диалога с ботом; параметры, суммы, статусы и идентификаторы заказов и счетов. Для предоставления доступа хранятся ключи VPN/прокси, ссылки подписок, срок действия, лимиты и счётчики переданного трафика.</p>\n<p>При создании управляемого бота хранятся ID владельца, ID и username бота, его токен для управления и информация о выдаче пробного доступа. Не передавай ссылки подписок и токены посторонним.</p>\n<h2>Зачем нужны данные</h2><p>Для выдачи и восстановления доступа, проверки оплаты, управления подписками и зеркалами, предотвращения повторной выдачи бонуса, обработки обращений и устранения сбоев.</p>\n<h2>Кому передаются данные</h2><p>Telegram обеспечивает сообщения и работу Mini App. Платёжный сервис Lolzteam Market получает данные для создания и проверки счёта, включая Telegram ID, сумму и идентификатор заказа. Панель VPN получает данные ключа, лимиты и срок действия. Инфраструктура хостинга обрабатывает соединения. У этих сторон есть собственные условия обработки данных. Бот не запрашивает реквизиты банковской карты.</p>\n<h2>Сайт и Mini App</h2><p>Mini App показывает каталог и ивенты. Для ивентов Telegram initData отправляется на наш сервер только для проверки подписи Telegram и привязки награды к аккаунту. Хранятся Telegram ID, количество тапов, накопленные/активированные секунды и технические счётчики защиты от автокликеров. Cookies, рекламная аналитика и локальное хранилище не используются. Подключается официальный скрипт Telegram. Веб-сервер и инфраструктура могут обрабатывать IP-адрес, время запроса, адрес страницы и сведения браузера в технических журналах.</p>\n<h2>Срок хранения и удаление</h2><p>Автоматический срок удаления заказов и аккаунтов в текущей версии не установлен: сведения сохраняются до обработки запроса на удаление или очистки оператором. Для запроса копии, исправления или удаления своих данных напиши в поддержку с того же Telegram-аккаунта. Поддержка уточнит объём удаления, последствия для действующей подписки и применимые ограничения. Резервные копии и журналы могут сохраняться отдельно.</p>\n<h2>Защита и ограничения</h2><p>Административные действия доступны ограниченному списку Telegram ID. Сайт работает через HTTPS при корректной настройке сервера. Мы не обещаем абсолютной анонимности или полного отсутствия технических журналов: их состав зависит от настроек VPN, прокси и хостинга.</p>\n<h2>Контакты и изменения</h2><p>Актуальная редакция публикуется на этой странице. Обращения по персональным данным:</p>'
-        content+=link(support,support_url)+link('Вернуться в ReVPN','/app','plain')
+        content='<div class="brandbar"><span class="brandmark">R</span><strong>ReVPN</strong></div><section class="privacy-card"><span class="eyebrow">ReVPN · редакция от 30.09.2026</span><h1>Политика конфиденциальности</h1>\n<p>Эта страница описывает обработку данных в боте ReVPN, его Mini App и сервисе VPN/MTProto. По вопросам обработки данных отвечает команда ReVPN через поддержку ниже.</p>\n<h2>Какие данные обрабатываются</h2><p>Telegram ID, отображаемое имя, выбранный тариф и оператор, состояние диалога с ботом; параметры, суммы, статусы и идентификаторы заказов и счетов. Для предоставления доступа хранятся ключи VPN/прокси, ссылки подписок, срок действия, лимиты и счётчики переданного трафика.</p>\n<p>При создании управляемого бота хранятся ID владельца, ID и username бота, его токен для управления и информация о выдаче пробного доступа. Не передавай ссылки подписок и токены посторонним.</p>\n<h2>Зачем нужны данные</h2><p>Для выдачи и восстановления доступа, проверки оплаты, управления подписками и зеркалами, предотвращения повторной выдачи бонуса, обработки обращений и устранения сбоев.</p>\n<h2>Кому передаются данные</h2><p>Telegram обеспечивает сообщения и работу Mini App. Платёжный сервис Lolzteam Market получает данные для создания и проверки счёта, включая Telegram ID, сумму и идентификатор заказа. Панель VPN получает данные ключа, лимиты и срок действия. Инфраструктура хостинга обрабатывает соединения. У этих сторон есть собственные условия обработки данных. Бот не запрашивает реквизиты банковской карты.</p>\n<h2>Сайт и Mini App</h2><p>Mini App показывает каталог и ивенты. Для ивентов Telegram initData отправляется на наш сервер только для проверки подписи Telegram и привязки награды к аккаунту. Хранятся Telegram ID, количество тапов, накопленные/активированные секунды и технические счётчики защиты от автокликеров. Cookies, рекламная аналитика и локальное хранилище не используются. Подключается официальный скрипт Telegram. Веб-сервер и инфраструктура могут обрабатывать IP-адрес, время запроса, адрес страницы и сведения браузера в технических журналах.</p>\n<h2>Срок хранения и удаление</h2><p>Автоматический срок удаления заказов и аккаунтов в текущей версии не установлен: сведения сохраняются до обработки запроса на удаление или очистки оператором. Для запроса копии, исправления или удаления своих данных напиши в поддержку с того же Telegram-аккаунта. Поддержка уточнит объём удаления, последствия для действующей подписки и применимые ограничения. Резервные копии и журналы могут сохраняться отдельно.</p>\n<h2>Защита и ограничения</h2><p>Административные действия доступны ограниченному списку Telegram ID. Сайт работает через HTTPS при корректной настройке сервера. Мы не обещаем абсолютной анонимности или полного отсутствия технических журналов: их состав зависит от настроек VPN, прокси и хостинга.</p>\n<h2>Контакты и изменения</h2><p>Актуальная редакция публикуется на этой странице. Обращения по персональным данным:</p>'
+        content+=link(support,support_url)+link('Вернуться в ReVPN','/app','plain')+'</section>'
     else:
-        content='<span class="eyebrow">VPN · TELEGRAM · ReVPN</span><h1>Твоё подключение.<br>В одном месте.</h1><p class="muted">Выбери тариф. Срок, трафик и итоговую сумму подтвердим в боте перед оплатой.</p><section id="event-card" class="event-card"><div class="event-head"><span class="badge">LIVE ИВЕНТ</span><strong id="event-timer">—</strong></div><h2 id="event-title">Загрузка ивента…</h2><p id="event-desc" class="muted">Каждый засчитанный тап = +1 секунда VPN.</p><div class="event-stats"><span>Баланс: <b id="event-balance">0 сек</b></span><span>В ивенте: <b id="event-taps">0</b></span></div><div id="event-arena" class="event-arena"><button id="event-tap" class="tap-button" type="button" disabled>Загрузка…</button></div><div id="event-challenge" class="challenge" hidden></div><button id="event-claim" class="claim-button" type="button" disabled>Активировать секунды</button><a id="event-connect" class="button event-connect" href="#" hidden>Подключить бонусный VPN</a><p id="event-note" class="muted event-note">Открой Mini App из Telegram, чтобы участвовать.</p></section><div class="grid">'
+        now_clock=event_clock()
+        preview_times=(time.time(),now_clock['next_at']+1,now_clock['next_at']+EVENT_CYCLE_SECONDS+1)
+        preview_html=[]
+        for idx,ts in enumerate(preview_times):
+            pc=event_clock(ts); pe=event_definition(pc['event_id'])
+            status=('LIVE' if idx==0 and now_clock['active'] else ('СЛЕДУЮЩИЙ' if idx<=1 else 'СКОРО'))
+            cls=' live' if idx==0 and now_clock['active'] else ''
+            preview_html.append(
+                '<div class="event-preview'+cls+'" data-event-preview="'+str(pc['event_id'])+'">'
+                '<div class="preview-icon accent-'+str(pe['accent'])+'">'+html.escape(pe['mark'])+'</div>'
+                '<div class="preview-copy"><span>'+status+'</span><strong>'+html.escape(pe['title'])+'</strong></div>'
+                '</div>'
+            )
+
+        product_cards=[]
         for key,label in PRODUCTS.items():
             cost=rubles(price(cfg['pricing'],720,0,key)) if cfg.get('pricing') else '—'
-            content+='<article><span class="badge">'+('Telegram' if key=='mtproto' else 'VPN')+'</span><h2>'+html.escape(label)+'</h2><p class="price">'+cost+' ₽ <small>/ 30 дней</small></p>'+link('Выбрать','https://t.me/'+bot+'?start=app_'+key)+'</article>'
-        content+='</div><section><h2>Уже подключён?</h2>'+link('Мои подписки','https://t.me/'+bot+'?start=app_account')+link('Бесплатный Telegram-прокси','https://t.me/'+bot+'?start=app_free','plain')+'</section>'
-        content+='<section><h2>Помощь рядом</h2><p>После оплаты открой подписку в боте и нажми «Добавить VPN в Happ». Для Telegram-прокси используй кнопку подключения.</p>'+link('Написать в поддержку',support_url,'plain')+link('Политика конфиденциальности','/privacy','plain')+'</section>'
-    css="""*{box-sizing:border-box}body{margin:0;background:var(--tg-theme-bg-color,#0c1422);color:var(--tg-theme-text-color,#edf4ff);font:16px/1.6 system-ui}main{max-width:880px;margin:auto;padding:32px 20px 60px}h1{font-size:clamp(30px,7vw,48px);line-height:1.13;letter-spacing:-1px;margin:20px 0}h2{font-size:20px;line-height:1.3}.eyebrow,.muted,small{color:var(--tg-theme-hint-color,#96a8c0)}.eyebrow{font-size:12px;letter-spacing:2px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(245px,1fr));gap:14px;margin-top:28px}article,section{background:var(--tg-theme-secondary-bg-color,#162339);padding:22px;border-radius:22px}section{margin-top:18px}.badge{font-size:12px;color:#8bceff}.price{font-size:28px;font-weight:700}small{font-size:14px;font-weight:400}a{color:var(--tg-theme-link-color,#92cfff)}.button{display:block;background:var(--tg-theme-button-color,#9bd7ff);color:var(--tg-theme-button-text-color,#0c1422);border-radius:14px;padding:13px;text-align:center;text-decoration:none;font-weight:650}.plain{display:block;padding:14px 0}.event-card{overflow:hidden}.event-head,.event-stats{display:flex;justify-content:space-between;gap:12px;align-items:center}.event-stats{font-size:14px;margin:14px 0}.event-arena{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,64px);gap:7px;background:rgba(255,255,255,.035);border-radius:18px;padding:9px;margin:14px 0}.tap-button,.claim-button,.challenge button{border:0;border-radius:14px;font:inherit;font-weight:750;cursor:pointer}.tap-button{grid-column:2;grid-row:2;background:var(--tg-theme-button-color,#9bd7ff);color:var(--tg-theme-button-text-color,#0c1422);padding:10px;min-width:0}.tap-button:disabled,.claim-button:disabled{opacity:.5;cursor:default}.claim-button{width:100%;padding:13px;background:rgba(255,255,255,.1);color:inherit}.event-connect{margin-top:10px}.event-note{font-size:13px;margin:10px 0 0}.challenge{padding:12px;border-radius:14px;background:rgba(255,255,255,.06);margin:10px 0}.challenge .challenge-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.challenge button{padding:12px;background:var(--tg-theme-button-color,#9bd7ff);color:var(--tg-theme-button-text-color,#0c1422);font-size:20px}a:focus-visible,button:focus-visible{outline:3px solid #f9ce69;outline-offset:3px}"""
-    scripts='' if privacy else """<script src="https://telegram.org/js/telegram-web-app.js"></script><script>
+            tag='Популярный' if key=='regular' else ('Telegram' if key=='mtproto' else 'VPN')
+            product_cards.append(
+                '<article class="plan-card plan-'+key+(' featured' if key=='regular' else '')+'">'
+                '<div class="plan-top"><div class="plan-icon">'+product_icon(key)+'</div><span class="plan-tag">'+tag+'</span></div>'
+                '<h3>'+html.escape(label)+'</h3>'
+                '<div class="plan-price"><strong>'+cost+' ₽</strong><span>/ 30 дней</span></div>'
+                '<p>'+('Отдельный ключ на срок подписки.' if key=='mtproto' else 'Срок и трафик выберешь перед оплатой в боте.')+'</p>'
+                +link('Выбрать тариф','https://t.me/'+bot+'?start=app_'+key,'plan-action')+
+                '</article>'
+            )
+
+        content='''<div id="app-loader" class="app-loader" aria-live="polite">
+  <div class="loader-stage">
+    <div class="loader-logo" aria-hidden="true">
+      <span class="loader-cube cube-a"></span><span class="loader-cube cube-b"></span><span class="loader-cube cube-c"></span>
+      <span class="loader-core">R</span>
+    </div>
+    <div class="loader-brand">ReVPN</div>
+    <div class="loader-caption">Подготавливаем защищённое подключение</div>
+    <div class="loader-track"><span id="loader-fill"></span><i></i></div>
+  </div>
+</div>
+<header class="app-header">
+  <a class="brand" href="/app"><span class="brandmark">R</span><span><strong>ReVPN</strong><small>VPN · Telegram</small></span></a>
+  <a class="header-link" href="https://t.me/'''+bot+'''?start=app_account">Мои подписки</a>
+</header>
+<section class="hero">
+  <span class="eyebrow">БЫСТРО · ПРОСТО · В ОДНОМ МЕСТЕ</span>
+  <h1>Твоё подключение.<br><span>Без лишнего шума.</span></h1>
+  <p>VPN, Telegram-прокси, бонусы и живые ивенты прямо внутри Mini App.</p>
+  <div class="hero-pills"><span><i></i> HTTPS Mini App</span><span>⚡ Мгновенная выдача</span><span>🧊 ReVPN</span></div>
+</section>
+<section class="plans-section">
+  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Выбери свой режим</h2></div><p>Итог подтвердим в боте перед оплатой.</p></div>
+  <div class="plans-grid">'''+''.join(product_cards)+'''</div>
+</section>
+<section class="events-section">
+  <div class="section-head"><div><span class="eyebrow">EVENT HUB</span><h2>Доступные ивенты</h2></div><p>Один ивент идёт 1 час, затем 10 минут перерыв.</p></div>
+  <div class="event-previews">'''+''.join(preview_html)+'''</div>
+  <div id="event-card" class="event-card accent-0">
+    <div class="event-aurora aurora-a"></div><div class="event-aurora aurora-b"></div>
+    <div class="event-card-top">
+      <div id="event-live" class="live-pill"><i></i><span>LIVE ИВЕНТ</span></div>
+      <div class="event-time"><span>до смены</span><strong id="event-timer">—</strong></div>
+    </div>
+    <div class="event-showcase">
+      <div id="event-orb" class="event-orb" style="--progress:0deg">
+        <div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div>
+        <div class="orb-inner"><span id="event-mark">⚡</span></div>
+      </div>
+      <div class="event-copy">
+        <span id="event-number" class="event-number">ИВЕНТ #—</span>
+        <h3 id="event-title">Загрузка ивента…</h3>
+        <p id="event-desc">Каждый засчитанный тап = +1 секунда VPN.</p>
+      </div>
+    </div>
+    <div class="event-stats">
+      <div><span>Баланс</span><strong id="event-balance">0 сек</strong></div>
+      <div><span>В ивенте</span><strong id="event-taps">0</strong></div>
+      <div><span>За всё время</span><strong id="event-lifetime">0</strong></div>
+    </div>
+    <div class="arena-label"><span>ТАП-ЗОНА</span><small>Кнопка двигается — это часть защиты</small></div>
+    <div id="event-arena" class="event-arena">
+      <span class="arena-grid"></span>
+      <button id="event-tap" class="tap-button" type="button" disabled><span class="tap-spark">✦</span><span id="tap-label">Загрузка…</span></button>
+    </div>
+    <div id="event-challenge" class="challenge" hidden></div>
+    <div class="event-actions">
+      <button id="event-claim" class="claim-button" type="button" disabled>Активировать секунды</button>
+      <a id="event-connect" class="connect-button" href="#" hidden>Подключить бонусный VPN <span>→</span></a>
+    </div>
+    <p id="event-note" class="event-note">Открой Mini App из Telegram, чтобы участвовать.</p>
+  </div>
+</section>
+<section class="quick-section">
+  <div class="quick-card">
+    <div class="quick-icon">↗</div><div><span>Уже подключён?</span><strong>Открой свои подписки</strong></div>
+    <a href="https://t.me/'''+bot+'''?start=app_account">Открыть</a>
+  </div>
+  <div class="quick-card">
+    <div class="quick-icon">TG</div><div><span>Telegram</span><strong>Бесплатный MTProto</strong></div>
+    <a href="https://t.me/'''+bot+'''?start=app_free">Подключить</a>
+  </div>
+</section>
+<footer><span>ReVPN — подключайся проще</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика</a></div></footer>'''
+
+    css=r"""
+:root{--bg:#05070b;--bg2:#08111d;--card:#0d1725;--card2:#111f32;--line:rgba(255,255,255,.075);--text:#f6f9ff;--muted:#8899b2;--ice:#94d8ff;--ice2:#5ab6ff;--green:#57e89d;--danger:#ff6574}
+*{box-sizing:border-box}
+html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;min-height:100vh;background:radial-gradient(900px 480px at 50% -220px,rgba(66,143,255,.22),transparent 68%),linear-gradient(180deg,#05070b 0%,#07101c 48%,#05070b 100%);color:var(--tg-theme-text-color,var(--text));font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(to bottom,black,transparent 75%);z-index:-1}
+a{color:inherit}
+main{width:min(100%,820px);margin:auto;padding:0 18px 54px}
+.app-header{width:min(100%,820px);margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:11px;text-decoration:none}
+.brandmark{width:39px;height:39px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#b9e7ff,#5daff0);color:#06101b;font-weight:950;box-shadow:0 8px 24px rgba(63,158,235,.24),inset 0 1px 0 rgba(255,255,255,.55)}
+.brand>span:last-child{display:flex;flex-direction:column;line-height:1.05}
+.brand strong{font-size:18px;letter-spacing:-.02em}
+.brand small{margin-top:4px;font-size:9px;letter-spacing:.16em;color:var(--muted)}
+.header-link{font-size:13px;font-weight:760;color:#c8dcf3;text-decoration:none;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}
+.hero{padding:34px 0 28px}
+.eyebrow{font-size:10px;letter-spacing:.2em;font-weight:850;color:#76c6ff}
+.hero h1{font-size:clamp(38px,9vw,68px);line-height:.98;letter-spacing:-.055em;margin:13px 0 18px;max-width:720px}
+.hero h1 span{color:#7bcaff}
+.hero>p{max-width:590px;margin:0;color:var(--muted);font-size:clamp(16px,3.4vw,20px)}
+.hero-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:23px}
+.hero-pills span{font-size:12px;color:#b7c8db;background:rgba(255,255,255,.035);border:1px solid var(--line);padding:9px 11px;border-radius:999px}
+.hero-pills i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 12px rgba(87,232,157,.7)}
+section{margin-top:18px}
+.section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:0 2px 14px}
+.section-head h2{font-size:27px;line-height:1.08;letter-spacing:-.035em;margin:6px 0 0}
+.section-head>p{max-width:285px;text-align:right;color:var(--muted);font-size:13px;margin:0}
+.plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.plan-card{position:relative;overflow:hidden;background:linear-gradient(150deg,rgba(18,28,43,.96),rgba(8,13,21,.97));border:1px solid var(--line);border-radius:25px;padding:18px;min-height:240px;box-shadow:0 15px 40px rgba(0,0,0,.18)}
+.plan-card:before{content:"";position:absolute;width:150px;height:150px;border-radius:50%;right:-75px;top:-80px;background:radial-gradient(circle,rgba(89,178,255,.18),transparent 68%);pointer-events:none}
+.plan-card.featured{border-color:rgba(104,197,255,.36);box-shadow:0 18px 50px rgba(25,116,190,.14)}
+.plan-top{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.plan-icon{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(145,218,255,.18),rgba(62,139,215,.08));border:1px solid rgba(145,218,255,.17);animation:iconFloat 4.5s ease-in-out infinite}
+.plan-icon svg{width:28px;height:28px;fill:none;stroke:#9bdbff;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
+.plan-tag{font-size:9px;letter-spacing:.1em;font-weight:850;text-transform:uppercase;color:#8ed2ff;border:1px solid rgba(118,198,255,.16);background:rgba(75,154,220,.08);padding:6px 8px;border-radius:999px}
+.plan-card h3{font-size:18px;margin:18px 0 8px;line-height:1.15}
+.plan-price{display:flex;align-items:baseline;gap:7px}
+.plan-price strong{font-size:27px;letter-spacing:-.04em}
+.plan-price span{font-size:11px;color:var(--muted)}
+.plan-card p{font-size:12px;color:var(--muted);min-height:38px;margin:9px 0 16px}
+.plan-action{display:block;text-decoration:none;text-align:center;padding:11px;border-radius:14px;background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.045);font-size:13px;font-weight:780;transition:.2s transform,.2s background}
+.featured .plan-action{background:linear-gradient(135deg,#9adaff,#5cb8f8);color:#07111a}
+.plan-action:active{transform:scale(.98)}
+.event-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;overflow:auto;padding-bottom:3px;scrollbar-width:none}
+.event-previews::-webkit-scrollbar{display:none}
+.event-preview{min-width:0;padding:12px;border-radius:18px;background:rgba(255,255,255,.028);border:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.event-preview.live{border-color:rgba(98,202,255,.34);background:linear-gradient(135deg,rgba(80,173,246,.09),rgba(255,255,255,.025))}
+.preview-icon{width:40px;height:40px;flex:0 0 40px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:linear-gradient(145deg,rgba(122,202,255,.16),rgba(38,90,150,.11));animation:iconFloat 4s ease-in-out infinite}
+.preview-copy{min-width:0;display:flex;flex-direction:column}
+.preview-copy span{font-size:8px;letter-spacing:.12em;color:#74c7ff;font-weight:900}
+.preview-copy strong{font-size:11px;line-height:1.2;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.event-card{--accent:#67bfff;position:relative;overflow:hidden;margin-top:12px;background:linear-gradient(160deg,#101e31 0%,#0b1626 58%,#08111e 100%);border:1px solid rgba(123,199,255,.14);border-radius:30px;padding:20px;box-shadow:0 25px 70px rgba(0,0,0,.25)}
+.event-card.accent-1{--accent:#7dd8ff}.event-card.accent-2{--accent:#9aa6ff}.event-card.accent-3{--accent:#64e0c6}.event-card.accent-4{--accent:#c68cff}.event-card.accent-5{--accent:#74a9ff}
+.event-aurora{position:absolute;border-radius:50%;filter:blur(48px);opacity:.17;pointer-events:none}
+.aurora-a{width:240px;height:240px;background:var(--accent);right:-110px;top:-90px;animation:auroraMove 8s ease-in-out infinite alternate}
+.aurora-b{width:170px;height:170px;background:#315bff;left:-100px;bottom:-100px;animation:auroraMove 10s ease-in-out infinite alternate-reverse}
+.event-card-top,.event-showcase,.event-stats,.arena-label{position:relative;z-index:2}
+.event-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.live-pill{display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.13em;font-weight:900;color:#8ed7ff;background:rgba(83,178,247,.08);border:1px solid rgba(118,207,255,.16);padding:8px 10px;border-radius:999px}
+.live-pill i{width:7px;height:7px;border-radius:50%;background:#6ad3ff;box-shadow:0 0 0 0 rgba(106,211,255,.55);animation:livePulse 1.8s infinite}
+.live-pill.paused{color:#aab5c4;background:rgba(255,255,255,.04)}.live-pill.paused i{background:#8593a6;animation:none}
+.event-time{display:flex;align-items:end;gap:8px}
+.event-time span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.event-time strong{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.event-showcase{display:flex;align-items:center;gap:20px;margin:22px 0 18px}
+.event-orb{--progress:0deg;position:relative;width:116px;height:116px;flex:0 0 116px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--accent) var(--progress),rgba(255,255,255,.06) 0);box-shadow:0 0 55px color-mix(in srgb,var(--accent) 20%,transparent);animation:orbFloat 4.2s ease-in-out infinite}
+.event-orb:before{content:"";position:absolute;inset:5px;border-radius:50%;background:#0c1828}
+.orb-inner{position:relative;z-index:3;width:78px;height:78px;border-radius:25px;display:grid;place-items:center;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 70%,#fff),color-mix(in srgb,var(--accent) 60%,#183452));color:#07111c;font-size:34px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 10px 35px color-mix(in srgb,var(--accent) 22%,transparent)}
+.orb-ring{position:absolute;border:1px solid color-mix(in srgb,var(--accent) 24%,transparent);border-radius:50%;z-index:2}.ring-one{inset:-9px;animation:ringSpin 16s linear infinite}.ring-two{inset:-18px;border-style:dashed;animation:ringSpin 24s linear infinite reverse}
+.event-copy{min-width:0}.event-number{font-size:9px;letter-spacing:.16em;color:var(--accent);font-weight:900}.event-copy h3{font-size:clamp(24px,5vw,34px);line-height:1.02;letter-spacing:-.045em;margin:7px 0 10px}.event-copy p{font-size:13px;color:#91a3bb;margin:0}
+.event-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:4px 0 18px}
+.event-stats>div{padding:12px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.04)}
+.event-stats span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.event-stats strong{display:block;font-size:17px;margin-top:3px}
+.arena-label{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}.arena-label span{font-size:9px;letter-spacing:.15em;font-weight:900;color:#9db3cb}.arena-label small{font-size:9px;color:#63758c}
+.event-arena{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,68px);gap:7px;padding:10px;border-radius:21px;background:rgba(2,8,15,.34);border:1px solid rgba(255,255,255,.045);overflow:hidden}
+.arena-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:33.333% 33.333%;pointer-events:none}
+.tap-button{position:relative;z-index:3;grid-column:2;grid-row:2;border:0;border-radius:18px;padding:8px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 82%,#fff),color-mix(in srgb,var(--accent) 72%,#4778b2));color:#07111b;font:inherit;font-size:12px;font-weight:900;box-shadow:0 12px 30px color-mix(in srgb,var(--accent) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.46);cursor:pointer;transition:.14s transform,.18s filter;overflow:hidden}
+.tap-button:before{content:"";position:absolute;inset:-80% auto -80% -55%;width:38%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.52),transparent);transform:rotate(20deg);animation:buttonShine 2.6s ease-in-out infinite}
+.tap-button:active{transform:scale(.94)}.tap-button:disabled{opacity:.46;filter:grayscale(.25);cursor:default}
+.tap-spark{display:block;font-size:17px;line-height:1}.tap-button span:last-child{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reward-pop{position:absolute;z-index:7;pointer-events:none;font-size:13px;font-weight:950;color:#a8e3ff;text-shadow:0 2px 12px #000;animation:rewardPop .75s ease-out forwards}
+.challenge{position:relative;z-index:2;padding:14px;border-radius:17px;margin-top:10px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.055)}.challenge p{font-size:12px;margin:0 0 10px;color:#b8c8da}.challenge-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.challenge button{border:0;border-radius:13px;background:rgba(126,207,255,.12);color:#e9f7ff;font:inherit;font-size:20px;padding:10px}
+.event-actions{position:relative;z-index:2;display:grid;grid-template-columns:1fr;gap:9px;margin-top:12px}
+.claim-button,.connect-button{min-height:52px;border:0;border-radius:17px;font:inherit;font-size:13px;font-weight:850;display:flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}
+.claim-button{background:rgba(255,255,255,.07);color:#d5e3f2}.claim-button:not(:disabled){background:linear-gradient(135deg,#9bdcff,#65bcf8);color:#07111a;box-shadow:0 12px 30px rgba(72,165,235,.18)}.claim-button:disabled{opacity:.44}
+.connect-button{background:linear-gradient(135deg,#76efba,#43d491);color:#06130d}.connect-button span{margin-left:8px;font-size:18px}
+.event-note{position:relative;z-index:2;color:#6f8299;font-size:10px;text-align:center;margin:10px 0 0}
+.quick-section{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:14px;border-radius:19px;border:1px solid var(--line);background:rgba(255,255,255,.026)}.quick-icon{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:rgba(116,196,255,.1);color:#8dd5ff;font-weight:900;font-size:12px}.quick-card div:nth-child(2){display:flex;flex-direction:column;min-width:0}.quick-card span{font-size:9px;color:var(--muted)}.quick-card strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quick-card a{font-size:10px;text-decoration:none;color:#8fd5ff;font-weight:800}
+footer{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:26px 3px 8px;color:#617289;font-size:10px}footer div{display:flex;gap:12px}footer a{text-decoration:none;color:#8799ae}
+.privacy-card{margin-top:14px;background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:24px;padding:22px}.privacy-card h1{font-size:36px;line-height:1.05;letter-spacing:-.04em}.privacy-card h2{font-size:18px;margin-top:24px}.privacy-card p{color:#a4b2c4}.button{display:block;background:#94d8ff;color:#07111a;border-radius:14px;padding:13px;text-align:center;text-decoration:none;font-weight:800;margin-top:10px}.plain{display:block;padding:12px 0;color:#8fd5ff}
+.app-loader{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:radial-gradient(400px 260px at 50% 48%,rgba(64,154,229,.16),transparent 70%),#030508;transition:opacity .42s ease,visibility .42s ease}
+.app-loader.hidden{opacity:0;visibility:hidden;pointer-events:none}
+.loader-stage{width:min(78vw,340px);text-align:center}.loader-logo{position:relative;width:116px;height:116px;margin:0 auto 18px;display:grid;place-items:center}.loader-core{position:relative;z-index:4;width:60px;height:60px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(145deg,#b5e5ff,#62b8f5);color:#07111a;font-size:29px;font-weight:950;box-shadow:0 18px 55px rgba(76,169,239,.25);animation:loaderCore 2.4s ease-in-out infinite}.loader-cube{position:absolute;width:28px;height:28px;border-radius:9px;background:linear-gradient(145deg,rgba(152,221,255,.9),rgba(64,143,214,.5));border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 28px rgba(75,164,232,.2)}.cube-a{left:2px;top:18px;animation:cubeA 3.2s ease-in-out infinite}.cube-b{right:2px;top:14px;animation:cubeB 3s ease-in-out infinite}.cube-c{bottom:0;left:44px;animation:cubeC 3.4s ease-in-out infinite}.loader-brand{font-size:31px;font-weight:950;letter-spacing:-.05em}.loader-caption{font-size:11px;color:#71839a;margin:5px 0 19px}.loader-track{position:relative;height:7px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.loader-track span{display:block;width:12%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#55b5fb,#a6e1ff);box-shadow:0 0 18px rgba(84,182,251,.45);transition:width .3s ease}.loader-track i{position:absolute;inset:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);animation:loadSweep 1.2s linear infinite}
+@keyframes iconFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(1deg)}}
+@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(106,211,255,.55)}70%{box-shadow:0 0 0 8px rgba(106,211,255,0)}100%{box-shadow:0 0 0 0 rgba(106,211,255,0)}}
+@keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes ringSpin{to{transform:rotate(360deg)}}
+@keyframes auroraMove{to{transform:translate(28px,24px) scale(1.12)}}
+@keyframes buttonShine{0%,58%{left:-55%}100%{left:135%}}
+@keyframes rewardPop{0%{opacity:0;transform:translate(-50%,8px) scale(.7)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-38px) scale(1.08)}}
+@keyframes loaderCore{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.035)}}
+@keyframes cubeA{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(-5px,12px) rotate(-14deg)}}
+@keyframes cubeB{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(8px,10px) rotate(16deg)}}
+@keyframes cubeC{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(0,8px) rotate(10deg)}}
+@keyframes loadSweep{from{transform:translateX(-130%)}to{transform:translateX(390%)}}
+@media(max-width:620px){main{padding-left:14px;padding-right:14px}.app-header{padding:14px}.hero{padding-top:22px}.plans-grid{gap:9px}.plan-card{padding:14px;border-radius:21px;min-height:224px}.plan-card h3{font-size:16px}.plan-price strong{font-size:23px}.event-previews{grid-template-columns:repeat(3,185px)}.event-showcase{gap:14px}.event-orb{width:94px;height:94px;flex-basis:94px}.orb-inner{width:64px;height:64px;border-radius:21px;font-size:28px}.event-stats strong{font-size:15px}.quick-section{grid-template-columns:1fr}.section-head{align-items:start}.section-head>p{display:none}}
+@media(max-width:390px){.plans-grid{grid-template-columns:1fr}.plan-card{min-height:auto}.event-copy h3{font-size:23px}.event-showcase{align-items:flex-start}.event-stats{gap:6px}.event-stats>div{padding:10px 8px}.event-stats span{font-size:8px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+a:focus-visible,button:focus-visible{outline:3px solid #a8ddff;outline-offset:3px}
+"""
+    scripts='' if privacy else r"""<script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 const app=window.Telegram?.WebApp;
-if(app){app.ready();app.expand();}
-let evState=null,timerLeft=0,cooldownLeft=0,busy=false;
+if(app){
+  app.ready();app.expand();
+  try{app.setHeaderColor('#05070b');app.setBackgroundColor('#05070b');}catch(_){}
+}
+let evState=null,timerLeft=0,cooldownLeft=0,busy=false,loaderDone=false;
 const $=id=>document.getElementById(id);
 function fmt(sec){sec=Math.max(0,Math.floor(sec||0));const m=Math.floor(sec/60),s=sec%60;return m+':'+String(s).padStart(2,'0');}
+function bootProgress(value){const el=$('loader-fill');if(el)el.style.width=Math.max(4,Math.min(100,value))+'%';}
+function finishLoader(){
+  if(loaderDone)return;loaderDone=true;bootProgress(100);
+  setTimeout(()=>{$('app-loader')?.classList.add('hidden');},260);
+}
 async function api(path,extra={}){
   const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:app?.initData||'',...extra})});
   let d={};try{d=await r.json();}catch(_){d={message:'Ошибка ответа сервера'};}
-  if(!r.ok){const e=new Error(d.message||'Ошибка');e.data=d;throw e;} return d;
+  if(!r.ok){const e=new Error(d.message||'Ошибка');e.data=d;throw e;}return d;
 }
 function placeButton(slot){
-  const b=$('event-tap'); slot=Number(slot||0)%9;
+  const b=$('event-tap');slot=Number(slot||0)%9;
   b.style.gridColumn=String(slot%3+1);b.style.gridRow=String(Math.floor(slot/3)+1);
+}
+function accent(value){
+  const card=$('event-card');if(!card)return;
+  card.className=card.className.replace(/\baccent-\d\b/g,'').trim()+' accent-'+(Number(value||0)%6);
 }
 function renderChallenge(c,disabled=false){
   const box=$('event-challenge');box.innerHTML='';
   if(!c?.required){box.hidden=true;return;}
-  box.hidden=false;const p=document.createElement('p');p.textContent=c.prompt;box.appendChild(p);
+  box.hidden=false;
+  const p=document.createElement('p');p.textContent=c.prompt;box.appendChild(p);
   const row=document.createElement('div');row.className='challenge-row';
   c.options.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.label;b.disabled=disabled;b.onclick=()=>solveChallenge(o.id);row.appendChild(b);});
   box.appendChild(row);
 }
-function render(d){
-  evState=d; const c=d.clock,u=d.user,e=d.event; timerLeft=c.seconds_left||0; cooldownLeft=u.cooldown_ms||0;
-  $('event-title').textContent=c.active?e.title:'Перерыв между ивентами';
-  $('event-desc').textContent=c.active?e.description:'Следующий ивент начнётся через '+fmt(timerLeft)+'.';
-  $('event-balance').textContent=u.balance_seconds+' сек';$('event-taps').textContent=u.event_taps;
-  $('event-timer').textContent=fmt(timerLeft); placeButton(u.slot);
-  const tap=$('event-tap');tap.textContent=c.active?e.button:'Перерыв';tap.disabled=!c.active||u.cooldown_ms>0||!!u.challenge;
-  const claim=$('event-claim');claim.disabled=u.balance_seconds<u.min_claim_seconds&&!(u.bonus?.syncing);
-  claim.textContent=u.bonus?.syncing?'Повторить синхронизацию':('Активировать секунды · от '+u.min_claim_seconds);
-  const link=$('event-connect'); if(u.bonus?.connect_url){link.href=u.bonus.connect_url;link.hidden=false;}else link.hidden=true;
-  renderChallenge(u.challenge,cooldownLeft>0);
-  $('event-note').textContent=u.cooldown_ms>0?'Антиавтокликер: пауза '+Math.ceil(u.cooldown_ms/1000)+' сек.':(u.bonus?.syncing?'Секунды сохранены, синхронизация с VPN ещё не завершена.':'1 засчитанный тап = 1 секунда бонусного VPN.');
+function rewardPop(){
+  const arena=$('event-arena');if(!arena)return;
+  const el=document.createElement('span');el.className='reward-pop';el.textContent='+1 сек';
+  el.style.left=(35+Math.random()*30)+'%';el.style.top=(38+Math.random()*20)+'%';
+  arena.appendChild(el);setTimeout(()=>el.remove(),800);
 }
-async function loadEvent(){try{render(await api('/api/events/state'));}catch(e){$('event-title').textContent='Ивенты доступны в Telegram';$('event-desc').textContent=e.message;$('event-tap').disabled=true;}}
+function render(d){
+  evState=d;const c=d.clock,u=d.user,e=d.event;timerLeft=c.seconds_left||0;cooldownLeft=u.cooldown_ms||0;
+  accent(e.accent);$('event-mark').textContent=e.mark||'⚡';
+  $('event-number').textContent='ИВЕНТ #'+String(c.event_no||'—').padStart(3,'0');
+  $('event-title').textContent=c.active?e.title:'Перерыв между ивентами';
+  $('event-desc').textContent=c.active?e.description:'Новый ивент уже готовится. Начнётся через '+fmt(timerLeft)+'.';
+  $('event-balance').textContent=u.balance_seconds+' сек';$('event-taps').textContent=u.event_taps;$('event-lifetime').textContent=u.lifetime_seconds;
+  $('event-timer').textContent=fmt(timerLeft);placeButton(u.slot);
+  const progress=c.active?(1-Math.min(3600,timerLeft)/3600):0;
+  $('event-orb')?.style.setProperty('--progress',(progress*360)+'deg');
+  const live=$('event-live');live.classList.toggle('paused',!c.active);live.querySelector('span').textContent=c.active?'LIVE ИВЕНТ':'ПЕРЕРЫВ';
+  const tap=$('event-tap');$('tap-label').textContent=c.active?e.button:'Скоро новый ивент';
+  tap.disabled=!c.active||u.cooldown_ms>0||!!u.challenge;
+  const claim=$('event-claim');claim.disabled=u.balance_seconds<u.min_claim_seconds&&!(u.bonus?.syncing);
+  claim.textContent=u.bonus?.syncing?'Повторить синхронизацию':('Активировать '+u.balance_seconds+' сек');
+  const link=$('event-connect');if(u.bonus?.connect_url){link.href=u.bonus.connect_url;link.hidden=false;}else link.hidden=true;
+  renderChallenge(u.challenge,cooldownLeft>0);
+  $('event-note').textContent=u.cooldown_ms>0?'Защита от автокликера: пауза '+Math.ceil(u.cooldown_ms/1000)+' сек.':(u.bonus?.syncing?'Секунды сохранены, синхронизация VPN ещё выполняется.':'1 засчитанный тап = 1 секунда бонусного VPN. Минимум для активации — '+u.min_claim_seconds+' сек.');
+}
+async function loadEvent(){
+  bootProgress(54);
+  try{
+    const d=await api('/api/events/state');bootProgress(82);render(d);finishLoader();
+  }catch(e){
+    $('event-title').textContent='Ивенты доступны в Telegram';
+    $('event-desc').textContent=e.message||'Открой Mini App из Telegram, чтобы участвовать.';
+    $('tap-label').textContent='Открой в Telegram';$('event-tap').disabled=true;
+    $('event-note').textContent='Каталог тарифов доступен, а награды привязываются только к Telegram-аккаунту.';
+    finishLoader();
+  }
+}
 $('event-tap')?.addEventListener('click',async()=>{
   if(busy||!evState)return;busy=true;$('event-tap').disabled=true;
-  try{const d=await api('/api/events/tap',{event_id:evState.clock.event_id,nonce:evState.user.nonce});if(app?.HapticFeedback&&d.accepted)app.HapticFeedback.impactOccurred('light');render(d);}
-  catch(e){$('event-note').textContent=e.message;if(e.data?.challenge){evState.user.challenge=e.data.challenge;renderChallenge(e.data.challenge);}else await loadEvent();}
-  finally{busy=false;if(evState)render(evState);}
+  try{
+    const d=await api('/api/events/tap',{event_id:evState.clock.event_id,nonce:evState.user.nonce});
+    if(d.accepted){rewardPop();if(app?.HapticFeedback)app.HapticFeedback.impactOccurred('light');}
+    render(d);
+  }catch(e){
+    $('event-note').textContent=e.message;
+    if(e.data?.challenge){evState.user.challenge=e.data.challenge;renderChallenge(e.data.challenge);}else await loadEvent();
+  }finally{busy=false;if(evState)render(evState);}
 });
-async function solveChallenge(choice){if(!evState||busy)return;busy=true;try{render(await api('/api/events/challenge',{nonce:evState.user.nonce,choice}));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}}
-$('event-claim')?.addEventListener('click',async()=>{if(busy)return;busy=true;$('event-claim').disabled=true;try{render(await api('/api/events/claim'));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}});
-setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState)loadEvent();if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState)loadEvent();}},1000);
-document.addEventListener('click',e=>{const a=e.target.closest('a');if(a&&a.href.startsWith('https://t.me/')&&app){e.preventDefault();app.openTelegramLink(a.href);app.close();}});
-loadEvent();
+async function solveChallenge(choice){
+  if(!evState||busy)return;busy=true;
+  try{render(await api('/api/events/challenge',{nonce:evState.user.nonce,choice}));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}
+  catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}
+}
+$('event-claim')?.addEventListener('click',async()=>{
+  if(busy)return;busy=true;$('event-claim').disabled=true;
+  try{const d=await api('/api/events/claim');render(d);if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}
+  catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}
+});
+setInterval(()=>{
+  if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}
+  else if(evState)loadEvent();
+  if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState)loadEvent();}
+},1000);
+document.addEventListener('click',e=>{
+  const a=e.target.closest('a');
+  if(a&&a.href.startsWith('https://t.me/')&&app){e.preventDefault();app.openTelegramLink(a.href);setTimeout(()=>app.close(),120);}
+});
+bootProgress(22);requestAnimationFrame(()=>bootProgress(38));loadEvent();
 </script>"""
-    return ('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>'+title+'</title><style>'+css+'</style></head><body><main>'+content+'</main>'+scripts+'</body></html>').encode()
-
+    return ('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#05070b"><title>'+title+'</title><style>'+css+'</style></head><body><main>'+content+'</main>'+scripts+'</body></html>').encode()
 
 def handler(db_path,public_base,support,cfg=None):
     cfg=cfg or {}
