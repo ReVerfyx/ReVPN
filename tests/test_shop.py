@@ -53,6 +53,16 @@ class ShopTests(unittest.TestCase):
         self.q=self.s.quote(1,720,0,5000)
         self.o=self.s.order(self.q,1)
     def tearDown(self): self.s.db.close(); self.temp.cleanup()
+    def test_bonus_wallet_reserves_discount_and_refunds_stale_quote(self):
+        uid=99
+        self.s.add_bonus(uid,500)
+        qid=self.s.quote(uid,720,0,5000)
+        q=self.s.db.execute('SELECT amount,base_amount,bonus_used FROM quotes WHERE id=?',(qid,)).fetchone()
+        self.assertEqual((q['amount'],q['base_amount'],q['bonus_used']),(4500,5000,500))
+        self.assertEqual(self.s.bonus_balance(uid),0)
+        self.s.db.execute('UPDATE quotes SET created=0 WHERE id=?',(qid,))
+        self.assertEqual(self.s.bonus_balance(uid),500)
+
     def test_price_month(self): self.assertEqual(price(PRICING,720,0),5000)
     def test_price_hour(self): self.assertEqual(price(PRICING,1,0),100)
     def test_price_limited(self):

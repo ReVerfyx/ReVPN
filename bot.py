@@ -79,8 +79,11 @@ class Bot:
         for key,label in PRODUCTS.items():
             cost=rubles(price(self.cfg['pricing'],720,0,key))
             rows.append([button(label+' · '+cost+' ₽ / 30 дн.','product:'+key)])
-        self.screen(uid,'<b>Подписки</b>\n\nЦена на кнопке — за 30 дней. После выбора можно изменить срок и трафик.',
-                    rows+[[button('Назад','home')]])
+        bonus=self.s.bonus_balance(uid)
+        text='<b>Подписки</b>\n\nЦена на кнопке — за 30 дней. После выбора можно изменить срок и трафик.'
+        if bonus:
+            text+='\n\nБонусный баланс: <b>'+rubles(bonus)+' ₽</b>. Он автоматически уменьшит следующую оплату.'
+        self.screen(uid,text,rows+[[button('Назад','home')]])
 
     def section(self,uid,section):
         if section=='account':
@@ -214,10 +217,14 @@ class Bot:
         selected=targets(self.cfg,product,operator)
         amount=price(self.cfg['pricing'],hours,gb,product)
         qid=self.s.quote(uid,hours,gb,amount,product,operator,selected)
+        q=self.s.db.execute('SELECT amount,base_amount,bonus_used FROM quotes WHERE id=?',(qid,)).fetchone()
+        payable=int(q['amount']); bonus=int(q['bonus_used']); base=int(q['base_amount'] or amount)
         self.s.state(uid,{})
         extra='\nЛимит делится поровну между '+str(len(selected))+' профилями.' if gb and len(selected)>1 else ''
-        self.tg.send(uid,f'<b>{PRODUCTS[product]} · {description(hours,gb)}</b>\nК оплате: <b>{rubles(amount)} ₽</b>.\nСрок начинается при выдаче доступа. Автосписаний нет.'+extra,
-            [[button('Перейти к оплате · '+rubles(amount)+' ₽','confirm:'+qid)],[button('Изменить тариф','buy')]])
+        if bonus:
+            extra+='\nЦена: '+rubles(base)+' ₽\nБонус: −'+rubles(bonus)+' ₽'
+        self.tg.send(uid,f'<b>{PRODUCTS[product]} · {description(hours,gb)}</b>\nК оплате: <b>{rubles(payable)} ₽</b>.\nСрок начинается при выдаче доступа. Автосписаний нет.'+extra,
+            [[button('Перейти к оплате · '+rubles(payable)+' ₽','confirm:'+qid)],[button('Изменить тариф','buy')]])
 
     def show_order(self,uid,o):
         if o['user_id']!=uid: raise ShopError('Это чужой заказ.')

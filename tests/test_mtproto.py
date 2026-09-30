@@ -62,16 +62,25 @@ class MTProtoPerOrderTests(unittest.TestCase):
             link,
         )
 
-    def test_paid_proxy_link_keeps_random_padding(self):
+    def test_paid_proxy_link_uses_faketls_on_shared_443(self):
         cfg = {
             'mtproto': {
                 'public_host': 'revpn.work.gd',
-                'paid': {'port': 2443},
+                'paid': {
+                    'port': 2443,
+                    'public_port': 443,
+                    'transport': 'fake_tls',
+                    'tls_domain': 'www.microsoft.com',
+                },
                 'free': {'port': 3443},
             }
         }
         link = proxy_link(cfg, '0123456789abcdef0123456789abcdef', 'paid')
-        self.assertIn('secret=dd0123456789abcdef0123456789abcdef', link)
+        self.assertIn('port=443', link)
+        self.assertIn(
+            'secret=ee0123456789abcdef0123456789abcdef7777772e6d6963726f736f66742e636f6d',
+            link,
+        )
 
 
 if __name__ == '__main__':

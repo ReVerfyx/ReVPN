@@ -156,15 +156,28 @@
     "public_host": "vpn.example.com",
     "paid": {
       "enabled": false,
-      "port": 2443
+      "port": 2443,
+      "public_port": 443,
+      "transport": "fake_tls",
+      "tls_domain": "www.microsoft.com"
     },
     "free": {
       "enabled": false,
       "port": 3443,
+      "public_port": 443,
       "secret": "",
       "ad_tag": "",
       "transport": "fake_tls",
-      "tls_domain": ""
+      "tls_domain": "www.cloudflare.com"
     }
+  },
+  "edge443": {
+    "enabled": false,
+    "listen_host": "0.0.0.0",
+    "listen_port": 443,
+    "web_backend_port": 4443,
+    "web_sni": "vpn.example.com",
+    "free_sni": "www.cloudflare.com",
+    "paid_sni": "www.microsoft.com"
   }
 }

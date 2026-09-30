@@ -37,7 +37,7 @@ def proxy_link(cfg,secret,kind='paid'):
     host=cfg['mtproto'].get('public_host','')
     # Migrate this installation's legacy address; preserve other deployments.
     if host=='2.26.85.86': host='revpn.work.gd'
-    transport=section.get('transport','fake_tls' if kind=='free' else 'secure')
+    transport=section.get('transport','fake_tls')
     if transport=='fake_tls':
         tls_domain=(section.get('tls_domain') or host).strip()
         if not tls_domain:
@@ -45,7 +45,7 @@ def proxy_link(cfg,secret,kind='paid'):
         client_secret='ee'+secret+tls_domain.encode('utf-8').hex()
     else:
         client_secret='dd'+secret
-    return 'https://t.me/proxy?'+urlencode({'server':host,'port':section['port'],'secret':client_secret})
+    return 'https://t.me/proxy?'+urlencode({'server':host,'port':section.get('public_port',section['port']),'secret':client_secret})
 
 def ready(data,kind,oid=None):
     try:

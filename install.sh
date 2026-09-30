@@ -16,7 +16,7 @@ python3 - "$src_dir" <<'PYCHECK'
 import sys
 from pathlib import Path
 root=Path(sys.argv[1])
-for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','events.py','mtproto_service.py','setup.py'):
+for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','events.py','mtproto_service.py','edge443.py','edge443_setup.py','setup.py'):
     compile((root/name).read_text(),str(root/name),'exec')
 sys.path.insert(0,str(root))
 if Path('/etc/revpn-shop/config.json').is_file():
@@ -27,13 +27,21 @@ PYCHECK
 if systemctl is-active --quiet revpn-shop; then systemctl stop revpn-shop; fi
 if ! id revpnshop >/dev/null 2>&1; then useradd --system --home /var/lib/revpn-shop --shell /usr/sbin/nologin revpnshop; fi
 install -d -m 755 /opt/revpn-shop
-for file in bot.py core.py providers.py delivery.py subscriptions.py events.py mtproto_service.py setup.py config.example.json; do
+for file in bot.py core.py providers.py delivery.py subscriptions.py events.py mtproto_service.py edge443.py edge443_setup.py setup.py config.example.json; do
   if [[ "$src_dir/$file" != "/opt/revpn-shop/$file" ]]; then install -m 644 "$src_dir/$file" "/opt/revpn-shop/$file"; fi
 done
 install -d -o revpnshop -g revpnshop -m 700 /var/lib/revpn-shop
 install -d -m 755 /opt/revpn-shop/vendor
 install -m 644 "$src_dir/vendor/mtprotoproxy.py" /opt/revpn-shop/vendor/mtprotoproxy.py
 python3 /opt/revpn-shop/setup.py
+if python3 - <<'PYEDGE'
+import json
+c=json.load(open('/etc/revpn-shop/config.json'))
+raise SystemExit(0 if c.get('edge443',{}).get('enabled') else 1)
+PYEDGE
+then
+  python3 /opt/revpn-shop/edge443_setup.py
+fi
 chown root:revpnshop /etc/revpn-shop /etc/revpn-shop/config.json
 chmod 750 /etc/revpn-shop
 chmod 640 /etc/revpn-shop/config.json
@@ -127,6 +135,29 @@ ReadWritePaths=/var/lib/revpn-shop
 [Install]
 WantedBy=multi-user.target
 UNIT
+cat > /etc/systemd/system/revpn-edge443.service <<'UNIT'
+[Unit]
+Description=ReVPN TCP 443 SNI edge for HTTPS and MTProto
+Wants=network-online.target
+After=network-online.target nginx.service revpn-mtproto-paid.service revpn-mtproto-free.service
+[Service]
+User=revpnshop
+Group=revpnshop
+WorkingDirectory=/opt/revpn-shop
+ExecStart=/usr/bin/python3 /opt/revpn-shop/edge443.py --config /etc/revpn-shop/config.json
+Restart=on-failure
+RestartSec=2
+UMask=0077
+NoNewPrivileges=true
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+[Install]
+WantedBy=multi-user.target
+UNIT
 systemctl daemon-reload
 systemctl enable revpn-shop revpn-subscriptions
 systemctl restart revpn-shop revpn-subscriptions
@@ -142,6 +173,15 @@ c=json.load(open('/etc/revpn-shop/config.json'))
 raise SystemExit(0 if c.get('mtproto',{}).get('free',{}).get('enabled') else 1)
 PY3
 then systemctl enable revpn-mtproto-free; systemctl restart revpn-mtproto-free; fi
+if python3 - <<'PY4'
+import json
+c=json.load(open('/etc/revpn-shop/config.json'))
+raise SystemExit(0 if c.get('edge443',{}).get('enabled') else 1)
+PY4
+then
+  systemctl enable revpn-edge443
+  systemctl restart revpn-edge443
+fi
 # Refresh the optional publisher, including token and old Telethon service migration.
 if [[ -f /opt/revpn-channel/channel_agent.py ]]; then
   bash "$src_dir/install-channel.sh" --update
