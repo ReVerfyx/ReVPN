@@ -8,6 +8,7 @@ import json
 import re
 import sqlite3
 import time
+import threading
 from pathlib import Path
 from urllib.parse import urlsplit
 from events import EventService, EventError
@@ -93,7 +94,7 @@ def public_page(path,cfg,support):
         descriptions={'regular':'Для повседневных задач','whitelist':'5 профилей подключения','bundle':'Всё в одной подписке','mtproto':'Отдельный ключ MTProto'}
         for key,label in PRODUCTS.items():
             cost=rubles(price(cfg['pricing'],720,0,key)) if cfg.get('pricing') else '—'
-            selected=key=='regular'
+            selected=False
             product_cards.append(
                 '<button type="button" class="plan-card'+(' selected' if selected else '')+'" role="radio" aria-checked="'+str(selected).lower()+'" data-plan="'+key+'" data-label="'+html.escape(labels.get(key,label),quote=True)+'" data-url="https://t.me/'+bot+'?start=app_'+key+'">'
                 '<span class="plan-top"><span class="plan-icon">'+product_icon(key)+'</span><span class="selection-dot"></span></span>'
@@ -118,12 +119,12 @@ def public_page(path,cfg,support):
   <button class="header-link" type="button" id="app-close">Закрыть <span aria-hidden="true">↗</span></button>
 </header>
 <section id="screen-plans" class="app-screen" aria-labelledby="plans-heading">
-  <div class="screen-heading"><span class="eyebrow">ТВОЙ ДОСТУП К СЕТИ</span><h1 id="plans-heading">Выбери тариф</h1><p>Подключение начинается здесь.</p></div>
+  <div class="screen-heading"><span class="eyebrow">ТВОЙ ДОСТУП К СЕТИ</span><h1 id="plans-heading">Выбери тариф</h1><p>Первичная настройка · выбери подходящий вариант</p></div>
   <div class="hero-note"><span class="hero-note-icon">✦</span><div><strong>Один шаг до подключения</strong><p>Срок, трафик и итоговую цену выберешь в боте перед оплатой.</p></div></div>
   <div class="plans-grid" role="radiogroup" aria-label="Тарифы">'''+''.join(product_cards)+'''</div>
-  <a id="plan-continue" class="primary-action" href="https://t.me/'''+bot+'''?start=app_regular">Продолжить <span aria-hidden="true">→</span></a>
-  <p id="plan-selection" class="selection-note" aria-live="polite">Выбран: Обычный VPN</p>
-  <button type="button" class="bonus-teaser" data-screen="events"><span class="gift-icon">✧</span><span><strong>Играй. Забирай бонусы.</strong><small>Секунды VPN и бонусные рубли</small></span><span aria-hidden="true">→</span></button>
+  <a id="plan-continue" class="primary-action" aria-disabled="true" href="#">Продолжить <span aria-hidden="true">→</span></a>
+  <p id="plan-selection" class="selection-note" aria-live="polite">Выбери тариф или продолжи без него</p>
+  <button type="button" class="bonus-teaser" id="skip-setup"><span class="gift-icon">✧</span><span><strong>Продолжить без тарифа</strong><small>Сразу перейти к мини-играм</small></span><span aria-hidden="true">→</span></button>
 </section>
 <section id="screen-events" class="events-section app-screen" hidden aria-labelledby="events-heading">
   <div class="screen-heading"><span class="eyebrow">БОНУСЫ ЗА ИГРУ</span><h1 id="events-heading">Ивенты</h1><p>Час игры · 10 минут на перерыв</p></div>
@@ -166,7 +167,7 @@ def public_page(path,cfg,support):
     <p id="event-note" class="event-note">Открой Mini App из Telegram, чтобы участвовать.</p>
   </div>
 </section>
-<section id="screen-account" class="app-screen" hidden aria-labelledby="account-heading"><div class="screen-heading"><span class="eyebrow">ВСЁ ПОД РУКОЙ</span><h1 id="account-heading">Подключение</h1><p>Твои подписки и помощь с настройкой.</p></div><div class="quick-section">
+<section id="screen-account" class="app-screen" hidden aria-labelledby="account-heading"><div class="screen-heading"><span class="eyebrow">ВСЁ ПОД РУКОЙ</span><h1 id="account-heading">Подключение</h1><p>Твои подписки и помощь с настройкой.</p></div><div id="usage-panel" class="usage-panel"><h2>Трафик VPN</h2><p id="usage-status" role="status">Загрузка статистики…</p><div id="usage-list"></div><button id="usage-refresh" type="button" class="header-link">Обновить</button></div><div class="quick-section">
   <div class="quick-card">
     <div class="quick-icon">↗</div><div><span>Уже подключён?</span><strong>Открой свои подписки</strong></div>
     <a href="https://t.me/'''+bot+'''?start=app_account">Открыть</a>
@@ -177,7 +178,7 @@ def public_page(path,cfg,support):
   </div>
 </div>
 <footer><span>ReVPN</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика конфиденциальности</a></div></footer></section>
-<nav class="bottom-nav" aria-label="Разделы приложения">
+<nav class="bottom-nav" hidden aria-label="Разделы приложения">
 <button type="button" data-screen="plans" aria-current="page"><span aria-hidden="true">◇</span>Тарифы</button>
 <button type="button" data-screen="events"><span aria-hidden="true">✧</span>Ивенты</button>
 <button type="button" data-screen="account"><span aria-hidden="true">◎</span>Подключение</button>
@@ -187,7 +188,7 @@ def public_page(path,cfg,support):
 :root{color-scheme:dark;--bg:#080b10;--text:#f4f7fc;--muted:#9aa5b7;--line:#252d38;--accent:#8bcfff}
 *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:radial-gradient(ellipse at 50% 0,#102031 0,transparent 430px),var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:pointer}a{color:inherit;text-decoration:none}button{color:var(--text)}[hidden]{display:none!important}main{max-width:520px;margin:auto;padding:0 18px calc(100px + env(safe-area-inset-bottom,0px))}h1,h2,h3,strong{color:var(--text)}
 .app-header{height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff0d}.brand{display:flex;gap:9px;align-items:center}.brand strong{font-size:25px;letter-spacing:-1px;font-style:italic}.brand strong span{color:#8bcfff}.brandmark{display:grid;place-items:center;width:31px;height:35px;background:linear-gradient(145deg,#ceefff,#64b8f4);clip-path:polygon(50% 0,95% 24%,95% 76%,50% 100%,5% 76%,5% 24%);color:#102235;font-weight:900}.header-link{background:none;border:0;color:#a8b3c3;padding:12px 0 12px 12px;font-size:13px}.header-link span{margin-left:5px}.screen-heading{text-align:center;margin:28px 0 22px}.eyebrow{font-size:9px;letter-spacing:.19em;font-weight:700;color:#88b5d7}.screen-heading h1{font-size:29px;letter-spacing:-1px;line-height:1.2;margin:7px 0 8px}.screen-heading p{font-size:13px;color:var(--muted);margin:0}.hero-note{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid #35526a;border-radius:16px;background:linear-gradient(110deg,#122334,#101820);margin-bottom:20px}.hero-note-icon{color:#9cdbff;font-size:28px}.hero-note strong{font-size:13px}.hero-note p{color:#b0bac9;font-size:12px;margin:3px 0 0;line-height:1.5}
-#screen-plans .screen-heading{margin:24px 0 18px}#screen-plans .screen-heading .eyebrow,#screen-plans .screen-heading p{display:none}.plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-card{display:flex;flex-direction:column;align-items:stretch;text-align:left;min-width:0;border:1px solid #2b3039;background:linear-gradient(135deg,#191e27,#10141b);border-radius:17px;padding:14px;transition:border-color .18s,background .18s}.plan-card.selected{border-color:#8bcfff;background:linear-gradient(135deg,#182c40,#101d2b);box-shadow:0 0 0 1px #8bcfff22}.plan-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.plan-icon{width:25px;height:25px}.plan-icon svg{width:25px;height:25px;fill:none;stroke:#9dd8ff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.selection-dot{width:16px;height:16px;border:1px solid #525b68;border-radius:50%}.selected .selection-dot{border:4px solid #91d4ff;background:#16283a}.plan-name{font-size:13px;font-weight:650;min-height:32px;line-height:1.35}.plan-price{display:flex;gap:5px;align-items:baseline;flex-wrap:wrap;margin-top:5px}.plan-price strong{font-size:26px;letter-spacing:-.8px;line-height:1.2}.plan-price>span{font-size:10px;color:#adb7c7;white-space:nowrap}.plan-description{margin-top:9px;border-top:1px solid #ffffff0d;padding-top:8px;font-size:11px;color:#aeb8c7;line-height:1.4}.primary-action{display:flex;align-items:center;justify-content:center;gap:16px;background:linear-gradient(100deg,#b1e3ff,#70bef6);color:#092033;border:0;border-radius:14px;min-height:52px;font-weight:750;font-size:16px;margin-top:18px;box-shadow:0 7px 22px #63b9ff16}.primary-action span{font-size:23px;line-height:1}.selection-note{font-size:11px;text-align:center;color:var(--muted);margin:9px 0 18px}.bonus-teaser{width:100%;display:flex;text-align:left;gap:12px;align-items:center;border:1px solid #254937;border-radius:15px;background:linear-gradient(110deg,#112a20,#111b19);padding:14px;color:#b1f0ce}.gift-icon{font-size:32px;line-height:1}.bonus-teaser strong{color:#c4f6da;font-size:13px}.bonus-teaser small{display:block;font-size:11px;color:#94b9a6;margin-top:2px}.bonus-teaser>span:last-child{margin-left:auto;font-size:20px}
+#screen-plans .screen-heading{margin:24px 0 18px}#screen-plans .screen-heading .eyebrow,#screen-plans .screen-heading p{display:none}.primary-action[aria-disabled="true"]{background:#253243;color:#a7b6c8;box-shadow:none;cursor:default}.usage-panel{margin:0 0 20px}.usage-panel h2{font-size:20px}.usage-panel p{color:#acb9ca;font-size:12px}.usage-card{padding:16px;background:#132131;border:1px solid #33485e;border-radius:16px;margin:12px 0}.usage-card h3{font-size:15px;margin:0 0 14px}.usage-stats{display:grid;grid-template-columns:1fr 1fr;gap:12px}.usage-stats span{display:block;color:#aebdd0;font-size:11px}.usage-stats strong{display:block;font-size:22px;margin-top:4px}.plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-card{display:flex;flex-direction:column;align-items:stretch;text-align:left;min-width:0;border:1px solid #2b3039;background:linear-gradient(135deg,#191e27,#10141b);border-radius:17px;padding:14px;transition:border-color .18s,background .18s}.plan-card.selected{border-color:#8bcfff;background:linear-gradient(135deg,#182c40,#101d2b);box-shadow:0 0 0 1px #8bcfff22}.plan-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.plan-icon{width:25px;height:25px}.plan-icon svg{width:25px;height:25px;fill:none;stroke:#9dd8ff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.selection-dot{width:16px;height:16px;border:1px solid #525b68;border-radius:50%}.selected .selection-dot{border:4px solid #91d4ff;background:#16283a}.plan-name{font-size:13px;font-weight:650;min-height:32px;line-height:1.35}.plan-price{display:flex;gap:5px;align-items:baseline;flex-wrap:wrap;margin-top:5px}.plan-price strong{font-size:26px;letter-spacing:-.8px;line-height:1.2}.plan-price>span{font-size:10px;color:#adb7c7;white-space:nowrap}.plan-description{margin-top:9px;border-top:1px solid #ffffff0d;padding-top:8px;font-size:11px;color:#aeb8c7;line-height:1.4}.primary-action{display:flex;align-items:center;justify-content:center;gap:16px;background:linear-gradient(100deg,#b1e3ff,#70bef6);color:#092033;border:0;border-radius:14px;min-height:52px;font-weight:750;font-size:16px;margin-top:18px;box-shadow:0 7px 22px #63b9ff16}.primary-action span{font-size:23px;line-height:1}.selection-note{font-size:11px;text-align:center;color:var(--muted);margin:9px 0 18px}.bonus-teaser{width:100%;display:flex;text-align:left;gap:12px;align-items:center;border:1px solid #254937;border-radius:15px;background:linear-gradient(110deg,#112a20,#111b19);padding:14px;color:#b1f0ce}.gift-icon{font-size:32px;line-height:1}.bonus-teaser strong{color:#c4f6da;font-size:13px}.bonus-teaser small{display:block;font-size:11px;color:#94b9a6;margin-top:2px}.bonus-teaser>span:last-child{margin-left:auto;font-size:20px}
 .bottom-nav{position:fixed;z-index:20;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,520px);display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #29313c;background:#0d121bf5;backdrop-filter:blur(20px);padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px))}.bottom-nav button{border:0;background:transparent;color:#9ca8bb;font-size:11px;min-height:48px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px}.bottom-nav button span{font-size:24px;line-height:25px}.bottom-nav [aria-current]{color:#a2dcff;background:#8bcfff0d}
 .event-previews{display:flex;gap:8px;overflow:auto;scrollbar-width:none;margin-bottom:16px}.event-preview{display:flex;align-items:center;gap:8px;flex:0 0 190px;min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px;background:#111720}.event-preview.live{border-color:#496a84}.preview-icon{display:flex;color:#a8ddff}.preview-svg{width:24px;height:24px}.preview-copy{min-width:0}.preview-copy span{display:block;font-size:8px;color:#a0c9e8;font-weight:700}.preview-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;margin-top:3px}.event-card{--accent:#8bcfff;border:1px solid #303e50;background:linear-gradient(145deg,#142233,#0d141f);border-radius:20px;padding:16px;position:relative;overflow:hidden}.event-card.accent-1{--accent:#7dd8ff}.event-card.accent-2{--accent:#acb6ff}.event-card.accent-3{--accent:#79e1c6}.event-card.accent-4{--accent:#d4a8ff}.event-card.accent-5{--accent:#91b8ff}.event-aurora,.orb-ring{display:none}.event-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.live-pill{display:flex;align-items:center;gap:6px;border-radius:7px;background:#8bcfff0b;padding:6px;color:#b2dfff;font-size:9px;font-weight:700}.live-pill i{width:5px;height:5px;background:#8bd5ff;border-radius:50%}.live-pill.paused{color:#a7b3c3}.event-time{display:flex;align-items:center;gap:5px}.event-time span{font-size:9px;color:var(--muted)}.event-time strong{font-size:17px;font-variant-numeric:tabular-nums}.event-showcase{display:flex;align-items:center;gap:14px;margin:19px 0}.event-orb{width:58px;height:58px;flex:0 0 58px;padding:3px;background:conic-gradient(var(--accent) var(--progress),#ffffff12 0);border-radius:18px}.orb-inner{height:100%;display:grid;place-items:center;background:#162436;border-radius:15px}.event-art,.event-art svg{height:33px;width:33px;color:var(--accent)}.event-number{font-size:9px;letter-spacing:.09em;color:var(--accent)}.event-copy{min-width:0}.event-copy h3{font-size:18px;line-height:1.2;margin:5px 0 6px;letter-spacing:-.4px}.event-copy p{font-size:11px;color:#acb8c9;line-height:1.45;margin:0}.event-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:16px}.event-stats>div{border:1px solid #ffffff09;border-radius:10px;padding:9px 6px;background:#ffffff03;min-width:0}.event-stats span{display:block;font-size:8px;color:#a5b1c3}.event-stats strong{font-size:12px;display:block;margin-top:3px;overflow-wrap:anywhere}.event-stats>div:nth-child(2) strong{color:#91eac0}.arena-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}.arena-label>span{font-size:9px;letter-spacing:.06em;color:#b6c3d5;font-weight:650}.arena-label small{font-size:9px;color:#a0aec1;max-width:65%;text-align:right}.event-arena{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,65px);gap:8px;padding:10px;border:1px solid #ffffff0c;border-radius:15px;overflow:hidden;background:#09121d}.arena-grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff03 1px,transparent 1px),linear-gradient(90deg,#ffffff03 1px,transparent 1px);background-size:33.33% 33.33%;pointer-events:none}.tap-button{position:relative;z-index:3;border:0;border-radius:14px;background:linear-gradient(135deg,#badeff,var(--accent));color:#0b2037;font-size:10px;font-weight:750;padding:5px;min-width:0;overflow-wrap:anywhere;touch-action:manipulation}.tap-spark{display:block;font-size:22px}.tap-button:active{transform:scale(.94)}.tap-button:disabled{opacity:.5}.event-actions{display:grid;gap:8px;margin-top:12px}.claim-button,.connect-button{min-height:46px;border:0;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:10px;text-align:center;font:700 13px system-ui}.claim-button{background:#9ed9ff;color:#0a2539}.claim-button:disabled{background:#253245;color:#a0b0c5;cursor:default}.connect-button{background:#9ae6c1;color:#112d20}.event-note{font-size:11px;color:#a5b2c3;line-height:1.5;text-align:center;margin:12px 0 0}.challenge{padding:12px;border:1px solid #42617c;border-radius:12px;margin-top:12px}.challenge p{font-size:12px;color:#c0d1e4;margin:0 0 10px}.challenge-row{display:flex;gap:8px}.challenge button{flex:1;border:1px solid #465871;background:#263448;border-radius:9px;min-height:44px;color:#fff;font-size:20px}.reward-pop{position:absolute;z-index:7;pointer-events:none;color:#c4edff;font-weight:800;font-size:17px;animation:rewardPop .75s ease-out forwards}.quick-section{display:grid;gap:12px}.quick-card{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:16px;background:#121923}.quick-icon{grid-row:span 2;width:36px;height:36px;background:#203348;color:#a8dbff;border-radius:11px;display:grid;place-items:center;font-size:14px}.quick-card span{display:block;font-size:11px;color:var(--muted)}.quick-card strong{font-size:14px}.quick-card a{color:#9dd8ff;font-size:13px;padding-top:6px;grid-column:2;min-height:32px}footer{margin-top:26px;text-align:center;color:#9ba9bc;font-size:12px}footer>span{display:none}footer div{display:grid;gap:16px}footer a{padding:5px}.privacy-card{margin-top:25px}.privacy-card h1{font-size:28px;overflow-wrap:anywhere;line-height:1.25}.privacy-card h2{font-size:19px;margin-top:28px}.privacy-card p{color:#b2becf;font-size:14px}.brandbar{display:flex;gap:10px;align-items:center;margin-top:25px}.button{display:block;background:#9bd8ff;color:#102b3c;padding:12px;border-radius:10px;text-align:center}.plain{display:block;padding:15px 0;color:#9bd8ff}.app-loader{position:fixed;inset:0;z-index:100;background:#080b10;display:grid;place-items:center;transition:opacity .25s,visibility .25s}.app-loader.hidden{opacity:0;visibility:hidden;pointer-events:none}.loader-stage{width:210px;text-align:center}.loader-logo{display:none}.loader-brand{font-size:44px;font-style:italic;letter-spacing:-2px;font-weight:800;color:#abdeff}.loader-caption{color:#a1b2c5;font-size:12px;margin:8px 0 28px}.loader-track{height:4px;background:#253344;border-radius:5px;overflow:hidden}.loader-track span{display:block;height:100%;width:0;background:#8bcfff;transition:width .25s}.loader-track i{display:none}
 @keyframes rewardPop{to{transform:translateY(-55px);opacity:0}}@media(max-width:350px){main{padding-left:12px;padding-right:12px}.plan-card{padding:12px}.plan-price strong{font-size:23px}.plan-name{font-size:12px}.event-card{padding:12px}.event-time span{display:none}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition:none!important;scroll-behavior:auto!important}.snowflake{animation:snowFall var(--fall) linear forwards!important}}a:focus-visible,button:focus-visible{outline:3px solid #c4eaff;outline-offset:3px}
@@ -216,6 +217,8 @@ def public_page(path,cfg,support):
 document.getElementById('app-loader')?.classList.remove('hidden');
 const app=window.Telegram?.WebApp;
 if(app){app.ready();app.expand();try{app.setHeaderColor('#080b10');app.setBackgroundColor('#080b10');}catch(_){}}
+const launchAt=performance.now();
+let setupComplete=false,selectedPlan=null,usageBusy=false;
 let currentScreen='plans',loadingEvent=false;
 let evState=null,timerLeft=0,cooldownLeft=0,busy=false,loaderDone=false,snowTimer=null,reactionTimer=null;
 const $=id=>document.getElementById(id);
@@ -228,7 +231,7 @@ const SVG={
 function fmt(sec){sec=Math.max(0,Math.floor(sec||0));const m=Math.floor(sec/60),s=sec%60;return m+':'+String(s).padStart(2,'0');}
 function money(k){return (Number(k||0)/100).toFixed(2).replace(/\.00$/,'')+' ₽';}
 function bootProgress(v){const el=$('loader-fill');if(el)el.style.width=Math.max(4,Math.min(100,v))+'%';}
-function finishLoader(){if(loaderDone)return;loaderDone=true;bootProgress(100);setTimeout(()=>$('app-loader')?.classList.add('hidden'),260);}
+function finishLoader(){if(loaderDone)return;const left=5000-(performance.now()-launchAt);if(left>0){setTimeout(finishLoader,left);return;}loaderDone=true;bootProgress(100);$('app-loader')?.classList.add('hidden');}
 async function api(path,extra={}){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);let r;try{r=await fetch(path,{signal:controller.signal,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:app?.initData||'',...extra})});}finally{clearTimeout(timeout);}let d={};try{d=await r.json();}catch(_){d={message:'Ошибка ответа сервера'};}if(!r.ok){const e=new Error(d.message||'Ошибка');e.data=d;throw e;}return d;}
 function accent(v){const card=$('event-card');if(card)card.className=card.className.replace(/\baccent-\d\b/g,'').trim()+' accent-'+(Number(v||0)%6);}
 function placeButton(slot){const b=$('event-tap');slot=Number(slot||0)%9;b.style.gridColumn=String(slot%3+1);b.style.gridRow=String(Math.floor(slot/3)+1);}
@@ -249,25 +252,101 @@ $('event-claim')?.addEventListener('click',async()=>{if(busy)return;busy=true;$(
 setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState&&currentScreen==='events'&&!document.hidden&&!busy)loadEvent();if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState&&currentScreen==='events'&&!busy)loadEvent();}},1000);
 document.addEventListener('click',e=>{const a=e.target.closest('a');if(a&&a.href.startsWith('https://t.me/')&&app){e.preventDefault();app.openTelegramLink(a.href);setTimeout(()=>app.close(),120);}});
 function showScreen(name){
+ if(!setupComplete&&name!=='plans')return;
  if(!['plans','events','account'].includes(name))return;
  currentScreen=name;
  document.querySelectorAll('.app-screen').forEach(el=>el.hidden=el.id!=='screen-'+name);
  document.querySelectorAll('.bottom-nav button').forEach(el=>{if(el.dataset.screen===name)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
  clearGame();window.scrollTo(0,0);
  if(name==='events')loadEvent();
+ if(name==='account')loadUsage();
  if(app?.BackButton){if(name==='plans')app.BackButton.hide();else app.BackButton.show();}
 }
 document.querySelectorAll('[data-screen]').forEach(el=>el.addEventListener('click',()=>showScreen(el.dataset.screen)));
 app?.BackButton?.onClick(()=>showScreen('plans'));
-$('app-close').onclick=()=>{if(app?.initData)app.close();else showScreen('account');};
+$('app-close').onclick=()=>{if(app?.initData)app.close();else history.back();};
 const plans=[...document.querySelectorAll('[data-plan]')];
-function selectPlan(el){plans.forEach(p=>{const selected=p===el;p.classList.toggle('selected',selected);p.setAttribute('aria-checked',String(selected));p.tabIndex=selected?0:-1;});$('plan-continue').href=el.dataset.url;$('plan-selection').textContent='Выбран: '+el.dataset.label;}
+function selectPlan(el){selectedPlan=el;$('plan-continue').removeAttribute('aria-disabled');plans.forEach(p=>{const selected=p===el;p.classList.toggle('selected',selected);p.setAttribute('aria-checked',String(selected));p.tabIndex=selected?0:-1;});$('plan-continue').href=el.dataset.url;$('plan-selection').textContent='Выбран: '+el.dataset.label;}
 plans.forEach((el,i)=>{el.tabIndex=i===0?0:-1;el.onclick=()=>selectPlan(el);el.onkeydown=e=>{const delta={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];if(delta){e.preventDefault();const next=plans[(i+delta+plans.length)%plans.length];selectPlan(next);next.focus();}};});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)clearGame();else if(currentScreen==='events')loadEvent();});
-bootProgress(70);requestAnimationFrame(finishLoader);
+function completeSetup(){setupComplete=true;document.querySelector('.bottom-nav').hidden=false;}
+$('skip-setup').onclick=()=>{plans.forEach(p=>{p.classList.remove('selected');p.setAttribute('aria-checked','false');});selectedPlan=null;$('plan-continue').href='#';$('plan-continue').setAttribute('aria-disabled','true');$('plan-selection').textContent='Тариф не выбран';completeSetup();showScreen('events');};
+$('plan-continue').addEventListener('click',e=>{if(!selectedPlan){e.preventDefault();e.stopPropagation();return;}completeSetup();});
+function bytes(value){if(value===null)return 'Нет данных';return (value/1073741824).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ГБ';}
+async function loadUsage(){
+ if(usageBusy)return;usageBusy=true;$('usage-refresh').disabled=true;$('usage-status').textContent='Обновляем статистику…';
+ try{const data=await api('/api/account/usage');$('usage-list').replaceChildren();
+ for(const sub of data.subscriptions){const card=document.createElement('article');card.className='usage-card';
+ const title=document.createElement('h3');title.textContent=sub.label;card.appendChild(title);
+ const stats=document.createElement('div');stats.className='usage-stats';
+ for(const [label,value] of [['Израсходовано',bytes(sub.used_bytes)],['Осталось',sub.unlimited?'Безлимит':bytes(sub.remaining_bytes)]]){const box=document.createElement('div'),small=document.createElement('span'),strong=document.createElement('strong');small.textContent=label;strong.textContent=value;box.append(small,strong);stats.appendChild(box);}card.appendChild(stats);
+ const info=document.createElement('p');info.textContent='Действует до '+new Date(sub.expires_at*1000).toLocaleDateString('ru-RU');card.appendChild(info);
+ const updated=document.createElement('p');updated.textContent=sub.updated_at?(sub.stale?'Данные устарели. ':'')+'Обновлено: '+new Date(sub.updated_at*1000).toLocaleString('ru-RU'):'Счётчики ещё не получены от VPN-сервера.';card.appendChild(updated);$('usage-list').appendChild(card);}
+ $('usage-status').textContent=data.subscriptions.length?'Счётчики обновляются примерно раз в минуту.':'Действующих VPN-подписок пока нет. Трафик MTProto здесь не учитывается.';
+ }catch(e){$('usage-status').textContent=app?.initData?'Не удалось загрузить статистику. Попробуй обновить.':'Открой Mini App из Telegram, чтобы увидеть свой трафик.';}finally{usageBusy=false;$('usage-refresh').disabled=false;}
+}
+$('usage-refresh').onclick=loadUsage;
+const launchProgress=setInterval(()=>{bootProgress(Math.min(99,(performance.now()-launchAt)/50));if(loaderDone)clearInterval(launchProgress);},50);
+finishLoader();
 
 </script>"""
     return ('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b10"><title>'+title+'</title><style>'+css+'</style></head><body><main>'+content+'</main>'+scripts+'</body></html>').encode()
+
+def sync_traffic(delivery, now=None):
+    """Refresh stored counters once per node; never replace unavailable data with zero."""
+    now=int(time.time() if now is None else now)
+    rows=delivery.s.db.execute("""SELECT a.order_id,a.node_id,o.email FROM allocations a
+        JOIN orders o ON o.id=a.order_id WHERE o.status='active' AND o.expiry_ms>?""",(now*1000,)).fetchall()
+    by_node={}
+    for row in rows: by_node.setdefault(row['node_id'],[]).append(row)
+    for node, allocated in by_node.items():
+        try:
+            stats=delivery.panels[node].inbound().get('clientStats')
+            if not isinstance(stats,list): continue
+            counters={r.get('email'):r for r in stats if isinstance(r,dict)}
+            for row in allocated:
+                stat=counters.get(row['email']+'-'+node)
+                if not stat: continue
+                up,down=stat.get('up'),stat.get('down')
+                if type(up) is not int or type(down) is not int or min(up,down)<0: continue
+                delivery.s.db.execute('UPDATE allocations SET upload=?,download=?,updated=? WHERE order_id=? AND node_id=?',
+                                     (up,down,now,row['order_id'],node))
+        except Exception:
+            # Keep the last known snapshot; the API labels it stale.
+            continue
+
+
+def traffic_worker(db_path,cfg):
+    from core import Store
+    from delivery import Delivery
+    store=Store(str(db_path))
+    delivery=Delivery(cfg,store,Path(db_path).parent)
+    while True:
+        try: sync_traffic(delivery)
+        except Exception: pass
+        time.sleep(60)
+
+
+def account_usage(service, init_data, now=None):
+    from delivery import PRODUCTS
+    now=int(time.time() if now is None else now)
+    uid=service._auth(init_data,now)
+    orders=service.db.execute("SELECT * FROM orders WHERE user_id=? AND status='active' AND expiry_ms>? AND product!='mtproto' ORDER BY expiry_ms DESC",(uid,now*1000)).fetchall()
+    result=[]
+    for order in orders:
+        rows=service.db.execute('SELECT quota,upload,download,updated FROM allocations WHERE order_id=?',(order['id'],)).fetchall()
+        expected=len(json.loads(order['targets']) or ['regular'])
+        known=len(rows)==expected and all(r['updated']>0 for r in rows)
+        used=sum(r['upload']+r['download'] for r in rows) if known else None
+        unlimited=order['gb']==0
+        remaining=None if unlimited or not known else sum(max(0,r['quota']-r['upload']-r['download']) for r in rows)
+        updated=min((r['updated'] for r in rows),default=0) if known else None
+        result.append({'label':PRODUCTS.get(order['product'],'VPN'),'expires_at':order['expiry_ms']//1000,
+                       'used_bytes':used,'remaining_bytes':remaining,'unlimited':unlimited,
+                       'limit_bytes':order['gb']*1024**3,'updated_at':updated,
+                       'stale':not known or now-updated>180})
+    return {'subscriptions':result}
+
 
 def handler(db_path,public_base,support,cfg=None):
     cfg=cfg or {}
@@ -279,7 +358,7 @@ def handler(db_path,public_base,support,cfg=None):
         def log_message(self,*args): pass # URLs are credentials; never log subscription tokens.
         def do_POST(self):
             path=urlsplit(self.path).path
-            routes={'/api/events/state','/api/events/tap','/api/events/play','/api/events/challenge','/api/events/claim'}
+            routes={'/api/account/usage','/api/events/state','/api/events/tap','/api/events/play','/api/events/challenge','/api/events/claim'}
             if path not in routes: return self.reply(404,b'Not found')
             if event_service is None: return self.json_reply(503,{'ok':False,'message':'Ивенты пока недоступны.'})
             try:
@@ -287,7 +366,8 @@ def handler(db_path,public_base,support,cfg=None):
                 if length<=0 or length>32768: return self.json_reply(413,{'ok':False,'message':'Слишком большой запрос.'})
                 body=json.loads(self.rfile.read(length))
                 init_data=body.get('init_data','')
-                if path=='/api/events/state': data=event_service.state(init_data)
+                if path=='/api/account/usage': data=account_usage(event_service,init_data)
+                elif path=='/api/events/state': data=event_service.state(init_data)
                 elif path in ('/api/events/tap','/api/events/play'): data=event_service.play(init_data,body.get('event_id'),body.get('nonce',''))
                 elif path=='/api/events/challenge': data=event_service.challenge(init_data,body.get('nonce',''),body.get('choice'))
                 else: data=event_service.claim(init_data)
@@ -338,4 +418,5 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(); p.add_argument('--config',default='/etc/revpn-shop/config.json'); p.add_argument('--data',default='/var/lib/revpn-shop'); a=p.parse_args()
     cfg=json.loads(Path(a.config).read_text()); sub=cfg['subscription']
     server=HTTPServer(('127.0.0.1',sub.get('local_port',8090)),handler(Path(a.data)/'shop.sqlite3',sub['public_base'],cfg['telegram']['support'],cfg))
+    threading.Thread(target=traffic_worker,args=(Path(a.data)/'shop.sqlite3',cfg),daemon=True).start()
     server.serve_forever()
