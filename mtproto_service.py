@@ -78,7 +78,11 @@ def run(cfg, data, kind):
                             child.wait()
 
                     tls_domain = (section.get('tls_domain') or cfg['mtproto'].get('public_host','')).strip()
-                    modes = {"classic": False, "secure": True, "tls": kind == 'free'}
+                    modes = {
+                        "classic": False,
+                        "secure": True,
+                        "tls": section.get('transport','fake_tls') == 'fake_tls',
+                    }
                     config_path.write_text(
                         'PORT = ' + repr(section['port']) + '\n'
                         'USERS = ' + repr(users) + '\n'
