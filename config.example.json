@@ -157,14 +157,14 @@
     "paid": {
       "enabled": false,
       "port": 2443,
-      "public_port": 443,
+      "public_port": 2443,
       "transport": "fake_tls",
       "tls_domain": "www.microsoft.com"
     },
     "free": {
       "enabled": false,
       "port": 3443,
-      "public_port": 443,
+      "public_port": 3443,
       "secret": "",
       "ad_tag": "",
       "transport": "fake_tls",
