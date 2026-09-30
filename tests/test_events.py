@@ -1,4 +1,4 @@
-"""Tests for Telegram Mini App event rewards."""
+"""Tests for Telegram Mini App event rewards and mini-games."""
 import hashlib
 import hmac
 import json
@@ -26,6 +26,19 @@ def init_data(uid, now):
     secret=hmac.new(b"WebAppData",TOKEN.encode(),hashlib.sha256).digest()
     fields["hash"]=hmac.new(secret,check.encode(),hashlib.sha256).hexdigest()
     return urlencode(fields)
+
+
+def find_time(game=None,reward=None):
+    base=2_000_000_000-(2_000_000_000 % EVENT_CYCLE_SECONDS)
+    for i in range(1200):
+        now=base+i*EVENT_CYCLE_SECONDS+20
+        event=event_definition(event_clock(now)["event_id"])
+        if game and event["game"]!=game:
+            continue
+        if reward and event["reward"]["kind"]!=reward:
+            continue
+        return float(now)
+    raise AssertionError("matching event not found")
 
 
 class FakeDelivery:
@@ -58,9 +71,11 @@ class EventTests(unittest.TestCase):
         self.service.close()
         self.tmp.cleanup()
 
-    def test_catalog_has_1000_unique_buttons(self):
-        buttons={event_definition(i)["button"] for i in range(1000)}
-        self.assertEqual(len(buttons),1000)
+    def test_catalog_has_1000_unique_buttons_and_all_game_types(self):
+        events=[event_definition(i) for i in range(1000)]
+        self.assertEqual(len({e["button"] for e in events}),1000)
+        self.assertEqual({e["game"] for e in events},{"tap_rush","snow_catch","reaction","ice_break"})
+        self.assertEqual({e["reward"]["kind"] for e in events},{"seconds","rubles","mixed"})
 
     def test_clock_is_one_hour_then_ten_minute_break(self):
         base=123*EVENT_CYCLE_SECONDS
@@ -80,19 +95,43 @@ class EventTests(unittest.TestCase):
         with self.assertRaises(EventAuthError):
             validate_init_data(data.replace("Tester","Hacker"),TOKEN,now)
 
-    def test_tap_gives_exactly_one_second_and_rate_limit_rejects_fast_tap(self):
-        now=2_000_000_000
+    def test_seconds_event_gives_one_second_and_rate_limit_rejects_fast_action(self):
+        now=find_time(game="tap_rush",reward="seconds")
         data=init_data(42,now)
         state=self.service.state(data,now)
-        first=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],now+0.20)
+        first=self.service.play(data,state["clock"]["event_id"],state["user"]["nonce"],now+0.20)
         self.assertTrue(first["accepted"])
         self.assertEqual(first["user"]["balance_seconds"],1)
-        second=self.service.tap(data,first["clock"]["event_id"],first["user"]["nonce"],now+0.25)
+        second=self.service.play(data,first["clock"]["event_id"],first["user"]["nonce"],now+0.25)
         self.assertFalse(second["accepted"])
         self.assertEqual(second["user"]["balance_seconds"],1)
 
+    def test_ruble_event_credits_bonus_wallet(self):
+        now=find_time(game="snow_catch",reward="rubles")
+        data=init_data(88,now)
+        state=self.service.state(data,now)
+        t=now+0.25
+        for step in (0.21,0.27,0.19,0.31,0.23):
+            state=self.service.play(data,state["clock"]["event_id"],state["user"]["nonce"],t)
+            self.assertTrue(state["accepted"],state.get("message"))
+            t+=step
+        self.assertEqual(state["user"]["bonus_kopecks"],25)
+        self.assertEqual(state["user"]["balance_seconds"],0)
+        self.assertEqual(state["user"]["event_reward_kopecks"],25)
+
+    def test_reaction_event_rejects_early_action(self):
+        now=find_time(game="reaction")
+        data=init_data(90,now)
+        state=self.service.state(data,now)
+        self.assertGreater(state["user"]["ready_in_ms"],0)
+        early=self.service.play(data,state["clock"]["event_id"],state["user"]["nonce"],now+0.05)
+        self.assertFalse(early["accepted"])
+        ready=now+(state["user"]["ready_in_ms"]/1000)+0.05
+        later=self.service.play(data,early["clock"]["event_id"],early["user"]["nonce"],ready)
+        self.assertTrue(later["accepted"])
+
     def test_challenge_respects_cooldown(self):
-        now=2_000_000_000
+        now=find_time(game="tap_rush")
         data=init_data(55,now)
         state=self.service.state(data,now)
         nonce=state["user"]["nonce"]
@@ -103,18 +142,16 @@ class EventTests(unittest.TestCase):
         blocked=self.service.challenge(data,nonce,1,now+1)
         self.assertIsNotNone(blocked["user"]["challenge"])
         self.assertGreater(blocked["user"]["cooldown_ms"],0)
-        passed=self.service.challenge(data,nonce,1,now+6)
+        passed=self.service.challenge(data,blocked["user"]["nonce"],1,now+6)
         self.assertIsNone(passed["user"]["challenge"])
 
     def test_claim_reuses_single_bonus_order(self):
-        now=2_000_000_000
+        now=find_time(game="tap_rush",reward="seconds")
         data=init_data(77,now)
         state=self.service.state(data,now)
         t=now+0.20
         def earn(count):
             nonlocal state,t
-            # Intentionally use a human-ish non-uniform rhythm. A perfectly
-            # periodic 200 ms loop is exactly what the anti-autoclicker should reject.
             rhythm=(0.17,0.24,0.19,0.28,0.21,0.25,0.18,0.27)
             for i in range(count):
                 challenge=state["user"].get("challenge")
@@ -123,7 +160,7 @@ class EventTests(unittest.TestCase):
                     choice=next(o["id"] for o in challenge["options"] if o["label"]==target)
                     state=self.service.challenge(data,state["user"]["nonce"],choice,t)
                     t+=0.31
-                state=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],t)
+                state=self.service.play(data,state["clock"]["event_id"],state["user"]["nonce"],t)
                 self.assertTrue(state["accepted"],state.get("message"))
                 t+=rhythm[i % len(rhythm)]
         earn(30)
@@ -142,7 +179,6 @@ class EventTests(unittest.TestCase):
             1,
         )
 
-        # Earn another claim; the same order/client must be extended, not duplicated.
         state=self.service.state(data,t+1)
         t+=1.2
         earn(30)
