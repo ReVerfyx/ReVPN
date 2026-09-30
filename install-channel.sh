@@ -22,6 +22,17 @@ fi
 systemctl enable --now ollama
 ollama pull qwen3:0.6b
 fi
+# Validate the exact source bundle before stopping or overwriting a service.
+python3 -B - "$src_dir" <<'PREFLIGHT'
+import json, sys
+from pathlib import Path
+sys.path.insert(0,sys.argv[1])
+from channel_news import fetch_news, fetch_articles, strip_teasers
+from channel_agent import migrate_config
+path=Path('/var/lib/revpn-channel/channel.json')
+if path.exists(): migrate_config(json.loads(path.read_text()))
+print('Проверка файлов новостного бота пройдена.')
+PREFLIGHT
 was_active=false
 if systemctl is-active --quiet revpn-channel; then was_active=true; fi
 systemctl stop revpn-channel 2>/dev/null || true
