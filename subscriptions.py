@@ -118,13 +118,15 @@ def public_page(path,cfg,support):
   <a class="header-link" href="https://t.me/'''+bot+'''?start=app_account">Мои подписки</a>
 </header>
 <section class="hero">
-  <span class="eyebrow">БЫСТРО · ПРОСТО · В ОДНОМ МЕСТЕ</span>
-  <h1>Твоё подключение.<br><span>Без лишнего шума.</span></h1>
-  <p>VPN, Telegram-прокси, бонусы и живые ивенты прямо внутри Mini App.</p>
-  <div class="hero-pills"><span><i></i> HTTPS Mini App</span><span>⚡ Мгновенная выдача</span><span>🧊 ReVPN</span></div>
+  <div class="hero-title"><span class="eyebrow">REVVPN · ПОДКЛЮЧЕНИЕ</span><h1>Выбери тариф</h1></div>
+  <div class="hero-note">
+    <span class="hero-note-icon">✦</span>
+    <div><strong>Подключение без лишних шагов</strong><p>Срок, трафик и итоговую цену подтвердим в боте перед оплатой.</p></div>
+  </div>
+  <div class="hero-pills"><span><i></i> Сервис онлайн</span><span>⚡ Быстрая выдача</span><span>🧊 Бонусные ивенты</span></div>
 </section>
 <section class="plans-section">
-  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Выбери свой режим</h2></div><p>Итог подтвердим в боте перед оплатой.</p></div>
+  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Доступные варианты</h2></div><p>VPN, белые списки и Telegram-прокси.</p></div>
   <div class="plans-grid">'''+''.join(product_cards)+'''</div>
 </section>
 <section class="events-section">
@@ -183,25 +185,32 @@ def public_page(path,cfg,support):
     css=r"""
 :root{--bg:#05070b;--bg2:#08111d;--card:#0d1725;--card2:#111f32;--line:rgba(255,255,255,.075);--text:#f6f9ff;--muted:#8899b2;--ice:#94d8ff;--ice2:#5ab6ff;--green:#57e89d;--danger:#ff6574}
 *{box-sizing:border-box}
-html{background:var(--bg);scroll-behavior:smooth}
-body{margin:0;min-height:100vh;background:radial-gradient(900px 480px at 50% -220px,rgba(66,143,255,.22),transparent 68%),linear-gradient(180deg,#05070b 0%,#07101c 48%,#05070b 100%);color:var(--tg-theme-text-color,var(--text));font:16px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
+html{background:var(--bg);scroll-behavior:smooth;color-scheme:dark}
+body{margin:0;min-height:100vh;background:radial-gradient(720px 360px at 20% -160px,rgba(70,169,255,.19),transparent 68%),radial-gradient(520px 320px at 108% 18%,rgba(89,103,255,.09),transparent 74%),linear-gradient(180deg,#05080e 0%,#07101a 46%,#05070b 100%);color:var(--text);font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
 body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(to bottom,black,transparent 75%);z-index:-1}
 a{color:inherit}
 main{width:min(100%,820px);margin:auto;padding:0 18px 54px}
-.app-header{width:min(100%,820px);margin:auto;padding:18px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.app-header{width:min(100%,820px);margin:auto;padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .brand{display:flex;align-items:center;gap:11px;text-decoration:none}
 .brandmark{width:39px;height:39px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#b9e7ff,#5daff0);color:#06101b;font-weight:950;box-shadow:0 8px 24px rgba(63,158,235,.24),inset 0 1px 0 rgba(255,255,255,.55)}
 .brand>span:last-child{display:flex;flex-direction:column;line-height:1.05}
 .brand strong{font-size:18px;letter-spacing:-.02em}
 .brand small{margin-top:4px;font-size:9px;letter-spacing:.16em;color:var(--muted)}
 .header-link{font-size:13px;font-weight:760;color:#c8dcf3;text-decoration:none;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}
-.hero{padding:34px 0 28px}
+.hero{position:relative;padding:18px 0 14px;margin-top:2px}
+
+.hero-title{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:11px}
+.hero-title .eyebrow{padding-bottom:5px}
+.hero-note{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:13px 14px;border-radius:18px;background:linear-gradient(145deg,rgba(13,28,44,.94),rgba(7,17,29,.94));border:1px solid rgba(102,184,239,.19);box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 14px 34px rgba(0,0,0,.16)}
+.hero-note-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(121,210,255,.2),rgba(67,123,193,.09));border:1px solid rgba(119,203,255,.17);color:#90d9ff;font-size:17px;animation:iconFloat 4s ease-in-out infinite}
+.hero-note strong{display:block;color:#eef8ff;font-size:13px;line-height:1.2}
+.hero-note p{margin:4px 0 0;color:#8fa2bb;font-size:10.5px;line-height:1.4}
 .eyebrow{font-size:10px;letter-spacing:.2em;font-weight:850;color:#76c6ff}
-.hero h1{font-size:clamp(38px,9vw,68px);line-height:.98;letter-spacing:-.055em;margin:13px 0 18px;max-width:720px}
+.hero h1{font-size:clamp(28px,6vw,38px);line-height:1;letter-spacing:-.045em;margin:5px 0 0;max-width:650px;color:#f7fbff}
 .hero h1 span{color:#7bcaff}
-.hero>p{max-width:590px;margin:0;color:var(--muted);font-size:clamp(16px,3.4vw,20px)}
-.hero-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:23px}
-.hero-pills span{font-size:12px;color:#b7c8db;background:rgba(255,255,255,.035);border:1px solid var(--line);padding:9px 11px;border-radius:999px}
+.hero>p{max-width:590px;margin:0;color:#9aabc1;font-size:13px}
+.hero-pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
+.hero-pills span{font-size:10px;color:#b7c8db;background:rgba(255,255,255,.032);border:1px solid rgba(145,199,240,.1);padding:7px 9px;border-radius:999px}
 .hero-pills i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 12px rgba(87,232,157,.7)}
 section{margin-top:18px}
 .section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:0 2px 14px}
@@ -296,6 +305,51 @@ footer{display:flex;justify-content:space-between;gap:15px;align-items:center;pa
 @keyframes snowSpin{to{rotate:210deg}}@keyframes readyPulse{to{transform:scale(1.08)}}@keyframes crystalHit{50%{transform:translate(-50%,-50%) scale(.9) rotate(3deg)}}
 @media(max-width:620px){.event-stats{grid-template-columns:repeat(2,1fr)}.event-arena{min-height:218px}}
 
+
+/* Branded dark UI: never inherit Telegram's light-theme black text. */
+.brand strong,.hero h1,.section-head h2,.plan-card h3,.plan-price strong,.preview-copy strong,
+.event-copy h3,.event-time strong,.event-stats strong,.quick-card strong,.loader-brand,
+.privacy-card h1,.privacy-card h2{color:#f5f9ff}
+.plan-card,.event-card,.event-preview,.quick-card,.privacy-card{color:#f5f9ff}
+.plan-action:not(.featured .plan-action){color:#dcecff}
+button{font-family:inherit}
+
+/* Compact mobile pricing: 2x2 instead of four giant full-width cards. */
+.plan-card{border-radius:21px;padding:15px;min-height:205px;background:linear-gradient(155deg,rgba(14,24,37,.985),rgba(7,13,22,.985));border-color:rgba(145,190,225,.11);box-shadow:0 16px 34px rgba(0,0,0,.22)}
+.plan-card.featured{border-color:rgba(100,198,255,.42);box-shadow:0 0 0 1px rgba(89,181,245,.06),0 18px 42px rgba(29,120,184,.14)}
+.plan-icon{width:42px;height:42px;border-radius:14px}
+.plan-icon svg{width:25px;height:25px}
+.plan-tag{font-size:8px;padding:5px 7px}
+.plan-card h3{font-size:15px;margin:13px 0 5px}
+.plan-price strong{font-size:24px}
+.plan-price span{font-size:10px}
+.plan-card p{font-size:10.5px;line-height:1.35;min-height:29px;margin:7px 0 12px}
+.plan-action{padding:10px 8px;border-radius:13px;font-size:11px}
+.section-head h2{font-size:24px}
+section{margin-top:16px}
+
+.event-card{margin-top:10px;border-radius:24px;padding:16px;background:linear-gradient(158deg,#0e1c2e 0%,#091523 60%,#07101a 100%);border-color:rgba(117,194,247,.17);box-shadow:0 22px 56px rgba(0,0,0,.25)}
+.event-showcase{gap:14px;margin:16px 0 14px}
+.event-orb{width:88px;height:88px;flex-basis:88px}
+.event-orb:before{inset:4px}
+.orb-inner{width:60px;height:60px;border-radius:20px}
+.event-art,.event-art svg{width:38px;height:38px}
+.ring-one{inset:-7px}.ring-two{inset:-13px}
+.event-copy h3{font-size:clamp(20px,4.5vw,27px);margin:5px 0 7px}
+.event-copy p{font-size:11px;line-height:1.42}
+.event-stats{gap:7px;margin:3px 0 13px}
+.event-stats>div{padding:10px;border-radius:14px;background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.045)}
+.event-stats span{font-size:8px}.event-stats strong{font-size:14px}
+.event-arena{min-height:198px;border-radius:18px}
+.arena-label{margin-bottom:7px}.arena-label small{font-size:8px}
+.event-note{font-size:9px}
+.event-preview{padding:9px;border-radius:14px;gap:8px}
+.preview-icon{width:35px;height:35px;flex-basis:35px;border-radius:12px}
+.preview-svg{width:21px;height:21px}
+.preview-copy strong{font-size:10px}
+.preview-copy span{font-size:7px}
+.quick-card{border-radius:17px;background:rgba(255,255,255,.022);border-color:rgba(255,255,255,.065)}
+
 @keyframes iconFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(1deg)}}
 @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(106,211,255,.55)}70%{box-shadow:0 0 0 8px rgba(106,211,255,0)}100%{box-shadow:0 0 0 0 rgba(106,211,255,0)}}
 @keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
@@ -308,8 +362,8 @@ footer{display:flex;justify-content:space-between;gap:15px;align-items:center;pa
 @keyframes cubeB{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(8px,10px) rotate(16deg)}}
 @keyframes cubeC{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(0,8px) rotate(10deg)}}
 @keyframes loadSweep{from{transform:translateX(-130%)}to{transform:translateX(390%)}}
-@media(max-width:620px){main{padding-left:14px;padding-right:14px}.app-header{padding:14px}.hero{padding-top:22px}.plans-grid{gap:9px}.plan-card{padding:14px;border-radius:21px;min-height:224px}.plan-card h3{font-size:16px}.plan-price strong{font-size:23px}.event-previews{grid-template-columns:repeat(3,185px)}.event-showcase{gap:14px}.event-orb{width:94px;height:94px;flex-basis:94px}.orb-inner{width:64px;height:64px;border-radius:21px;font-size:28px}.event-stats strong{font-size:15px}.quick-section{grid-template-columns:1fr}.section-head{align-items:start}.section-head>p{display:none}}
-@media(max-width:390px){.plans-grid{grid-template-columns:1fr}.plan-card{min-height:auto}.event-copy h3{font-size:23px}.event-showcase{align-items:flex-start}.event-stats{gap:6px}.event-stats>div{padding:10px 8px}.event-stats span{font-size:8px}}
+@media(max-width:620px){main{padding:0 14px 42px}.app-header{padding:12px 14px 8px}.hero{padding:14px 0 12px}.hero h1{font-size:31px}.hero-pills{margin-top:12px}.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.plan-card{padding:13px;min-height:190px}.plan-card h3{font-size:14px}.plan-price strong{font-size:22px}.event-previews{grid-template-columns:repeat(3,160px)}.event-showcase{gap:12px}.event-orb{width:82px;height:82px;flex-basis:82px}.orb-inner{width:56px;height:56px;border-radius:18px}.event-stats{grid-template-columns:repeat(2,1fr)}.event-stats strong{font-size:14px}.quick-section{grid-template-columns:1fr}.section-head{align-items:start}.section-head>p{display:none}}
+@media(max-width:390px){.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.plan-card{padding:12px;min-height:186px}.plan-icon{width:38px;height:38px}.plan-tag{font-size:7px}.plan-card h3{font-size:13px}.plan-price{gap:4px}.plan-price strong{font-size:21px}.plan-price span{font-size:9px}.plan-card p{font-size:9.5px;min-height:27px}.event-copy h3{font-size:20px}.event-showcase{align-items:center}.event-stats{gap:6px}.event-stats>div{padding:9px 8px}.event-stats span{font-size:7px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
 a:focus-visible,button:focus-visible{outline:3px solid #a8ddff;outline-offset:3px}
 """
