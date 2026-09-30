@@ -83,7 +83,8 @@ class CheckoutTests(unittest.TestCase):
             link=proxy_link(self.cfg,'a'*32,kind)
             q=parse_qs(urlsplit(link).query)
             self.assertEqual(q['server'],['revpn.work.gd'])
-            self.assertEqual(q['secret'],['dd'+'a'*32])
+            expected=('dd'+'a'*32) if kind=='paid' else ('ee'+'a'*32+'revpn.work.gd'.encode().hex())
+            self.assertEqual(q['secret'],[expected])
             self.assertEqual(q['port'],[str(self.cfg['mtproto'][kind]['port'])])
 
     def test_cancel_admin_prompt(self):
