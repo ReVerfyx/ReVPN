@@ -146,5 +146,11 @@ class PublicWebTests(unittest.TestCase):
                         self.assertIn('77 ₽',text)
                         self.assertIn('?start=app_regular',text)
                         self.assertIn('https://telegram.org',response.headers['Content-Security-Policy'])
+                        self.assertIn('id="app-loader"',text)
+                        self.assertIn('EVENT HUB',text)
+                        self.assertIn('event-previews',text)
+                        self.assertIn('loader-track',text)
+                        self.assertIn('reward-pop',text)
+                        self.assertIn('Доступные ивенты',text)
         finally:
             server.shutdown();thread.join();server.server_close()
