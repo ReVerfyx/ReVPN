@@ -4,6 +4,7 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from html.parser import HTMLParser
 import hashlib
+import logging
 import re
 import time
 import urllib.request
@@ -100,8 +101,12 @@ def fetch_articles(feeds):
             req=urllib.request.Request(url,headers={'User-Agent':'ReVPN-News/1.0','Accept':'application/rss+xml, application/atom+xml, application/xml, text/xml'})
             with opener.open(req,timeout=20) as r: raw=r.read(2_000_001)
             if len(raw)>2_000_000: continue
-            articles.extend(parse_feed(raw))
-        except Exception: continue
+            parsed_articles=parse_feed(raw)
+            if not parsed_articles: logging.getLogger('revpn-channel').info('RSS %s: нет материалов за последние 48 часов',urlsplit(url).hostname)
+            articles.extend(parsed_articles)
+        except Exception as exc:
+            logging.getLogger('revpn-channel').warning('RSS %s: ошибка %s',urlsplit(url).hostname,type(exc).__name__)
+            continue
     articles.sort(key=lambda a:a['published'],reverse=True)
     return articles
 
