@@ -98,16 +98,19 @@ class EventTests(unittest.TestCase):
         t=now+0.20
         def earn(count):
             nonlocal state,t
-            for _ in range(count):
+            # Intentionally use a human-ish non-uniform rhythm. A perfectly
+            # periodic 200 ms loop is exactly what the anti-autoclicker should reject.
+            rhythm=(0.17,0.24,0.19,0.28,0.21,0.25,0.18,0.27)
+            for i in range(count):
                 challenge=state["user"].get("challenge")
                 if challenge:
                     target=challenge["prompt"].rsplit(" ",1)[-1]
                     choice=next(o["id"] for o in challenge["options"] if o["label"]==target)
                     state=self.service.challenge(data,state["user"]["nonce"],choice,t)
-                    t+=0.20
+                    t+=0.31
                 state=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],t)
-                self.assertTrue(state["accepted"])
-                t+=0.20
+                self.assertTrue(state["accepted"],state.get("message"))
+                t+=rhythm[i % len(rhythm)]
         earn(30)
         claimed=self.service.claim(data,t+0.20)
         self.assertEqual(claimed["user"]["balance_seconds"],0)
