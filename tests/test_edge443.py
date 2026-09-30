@@ -1,7 +1,7 @@
 import unittest
 
 from edge443 import client_hello_sni
-from edge443_setup import patch_text
+from edge443_setup import patch_text, restore_text
 
 
 def hello(host):
@@ -23,6 +23,17 @@ class Edge443Tests(unittest.TestCase):
     def test_extracts_sni(self):
         self.assertEqual(client_hello_sni(hello('www.cloudflare.com')),'www.cloudflare.com')
         self.assertEqual(client_hello_sni(hello('www.microsoft.com')),'www.microsoft.com')
+
+    def test_nginx_backend_listener_restores_to_public_443(self):
+        source='''server {
+    listen 127.0.0.1:4443 ssl http2;
+    listen [::1]:4443 ssl;
+}
+'''
+        restored,changed=restore_text(source,4443)
+        self.assertTrue(changed)
+        self.assertIn('listen 443 ssl http2;',restored)
+        self.assertIn('listen [::]:443 ssl;',restored)
 
     def test_nginx_tcp_listener_moves_but_quic_stays(self):
         source='''server {

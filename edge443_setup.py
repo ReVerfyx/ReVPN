@@ -41,6 +41,9 @@ def nginx_files():
 LISTEN_RE = re.compile(
     r"^(?P<indent>\s*)listen\s+(?P<addr>443|(?:\[[^\]]+\]|[^\s:]+):443)(?P<rest>\s+[^;]*)?;\s*$"
 )
+BACKEND_RE = re.compile(
+    r"^(?P<indent>\s*)listen\s+(?P<addr>127\.0\.0\.1|\[::1\]):(?P<port>\d+)(?P<rest>\s+[^;]*)?;\s*$"
+)
 
 
 def patch_text(text, backend_port):
@@ -62,6 +65,61 @@ def patch_text(text, backend_port):
         out.append(f"{m.group('indent')}listen {newaddr}{rest};{ending}")
         changed=True
     return "".join(out),changed
+
+
+def restore_text(text, backend_port):
+    changed=False
+    out=[]
+    for line in text.splitlines(True):
+        raw=line.rstrip("\r\n")
+        m=BACKEND_RE.match(raw)
+        if not m or int(m.group("port"))!=int(backend_port):
+            out.append(line)
+            continue
+        rest=m.group("rest") or ""
+        if "ssl" not in rest.lower():
+            out.append(line)
+            continue
+        newaddr="443" if m.group("addr")=="127.0.0.1" else "[::]:443"
+        ending="\r\n" if line.endswith("\r\n") else "\n"
+        out.append(f"{m.group('indent')}listen {newaddr}{rest};{ending}")
+        changed=True
+    return "".join(out),changed
+
+
+def restore_nginx(backend_port):
+    subprocess.run(["systemctl","stop","revpn-edge443.service"],check=False)
+    touched=[]
+    backups={}
+    backup_root=Path("/etc/revpn-shop/nginx-edge443-backups")
+    backup_root.mkdir(parents=True,exist_ok=True)
+    for path in nginx_files():
+        try:
+            old=path.read_text()
+        except (OSError,UnicodeDecodeError):
+            continue
+        new,changed=restore_text(old,backend_port)
+        if not changed:
+            continue
+        stamp=str(int(time.time()))
+        backup=backup_root/(path.name+"."+stamp+".restore.bak")
+        shutil.copy2(path,backup)
+        backups[path]=backup
+        path.write_text(new)
+        touched.append(path)
+    test=subprocess.run(["nginx","-t"],text=True,capture_output=True)
+    if test.returncode:
+        for path,backup in backups.items():
+            shutil.copy2(backup,path)
+        sys.stderr.write(test.stdout+test.stderr)
+        raise SystemExit("nginx restore failed; restored backups")
+    subprocess.run(["systemctl","restart","nginx"],check=True)
+    if touched:
+        print("Website restored directly to nginx TCP/443.")
+        for p in touched:
+            print(" -",p)
+    else:
+        print("Website already uses nginx TCP/443 directly.")
 
 
 def can_connect(port):
@@ -87,7 +145,9 @@ def main():
     cfg=json.loads(Path("/etc/revpn-shop/config.json").read_text())
     edge=cfg.get("edge443",{})
     if not edge.get("enabled"):
-        print("edge443 disabled; nginx unchanged.")
+        if not shutil.which("nginx"):
+            raise SystemExit("nginx not found; cannot restore HTTPS on port 443")
+        restore_nginx(int(edge.get("web_backend_port",4443)))
         return
     if not shutil.which("nginx"):
         raise SystemExit("nginx not found; cannot preserve HTTPS on port 443")
