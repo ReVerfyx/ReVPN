@@ -130,3 +130,41 @@ class PhotoEditorialTests(unittest.TestCase):
         opener=MagicMock();opener.open.return_value.__enter__.return_value=io.BytesIO(ChannelTests().feed())
         with patch('channel_news.urllib.request.build_opener',return_value=opener):
             self.assertIsNone(fetch_news(['https://example.org/rss'],require_photo=True))
+
+class CalendarTests(unittest.TestCase):
+    def stamp(self,date):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        return datetime.fromisoformat(date).replace(tzinfo=ZoneInfo('Europe/Moscow')).timestamp()
+    def test_weekday_weekend_summer_holiday(self):
+        from channel_agent import slots
+        for day,count in [('2026-09-30',3),('2026-10-03',5),('2026-07-01',5),('2026-11-04',5)]:
+            self.assertEqual(len(slots({},self.stamp(day+'T12:00:00'))),count)
+    def test_no_catchup_and_persistent_slot(self):
+        from channel_agent import due_slot
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp))
+            self.assertIsNone(due_slot(db,1,{},self.stamp('2026-09-30T14:00:00')))
+            stamp=self.stamp('2026-09-30T15:10:00')
+            slot=due_slot(db,1,{},stamp);self.assertTrue(slot)
+            db.execute('INSERT INTO agent_meta VALUES(?,?)',(slot,'1'));db.commit();db.close()
+            db=open_db(Path(tmp));self.assertIsNone(due_slot(db,1,{},stamp));db.close()
+    def test_breaking_requires_recent_second_source(self):
+        from channel_agent import choose_breaking
+        a={'key':'a','url':'https://one.test/a','title':'В городе Примерске произошел теракт на вокзале','body':'Сообщение','published':10000}
+        b={**a,'key':'b','url':'https://two.test/b'}
+        self.assertIsNone(choose_breaking([a],set(),10010))
+        self.assertTrue(choose_breaking([a,b],set(),10010)['breaking'])
+        self.assertIsNone(choose_breaking([a,b],{'b'},10010))
+        self.assertIsNone(choose_breaking([a,b],set(),15000))
+    def test_signature_uses_utf16_offset(self):
+        p=Publisher('123:test');p.channel_url='https://t.me/ReversVPN'
+        text='Новость 🥶\n\nReVPN. Новостной канал'
+        entity=p.entities(text)[-1]
+        self.assertEqual(entity['type'],'text_link')
+        self.assertEqual(entity['offset'],12)
+    def test_teaser_and_duplicate_removed(self):
+        text='Заголовок\n\nТекст новости. Читать далее\n\nТекст новости.'
+        cleaned=clean_summary(text,{'url':'https://example.org/a'})
+        self.assertNotIn('Читать далее',cleaned)
+        self.assertEqual(cleaned.count('Текст новости.'),1)
