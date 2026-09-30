@@ -156,5 +156,9 @@ class PublicWebTests(unittest.TestCase):
                         self.assertIn('loader-track',text)
                         self.assertIn('reward-pop',text)
                         self.assertIn('Доступные ивенты',text)
+                        self.assertIn('hero-note',text)
+                        self.assertIn('color:var(--text)',text)
+                        self.assertNotIn('color:var(--tg-theme-text-color',text)
+                        self.assertIn('grid-template-columns:repeat(2,minmax(0,1fr))',text)
         finally:
             server.shutdown();thread.join();server.server_close()
