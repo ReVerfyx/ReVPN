@@ -166,7 +166,7 @@ def public_page(path,cfg,support):
     <a href="https://t.me/'''+bot+'''?start=app_free">Подключить</a>
   </div>
 </section>
-<footer><span>ReVPN — подключайся проще</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика</a></div></footer>'''
+<footer><span>ReVPN — подключайся проще</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика конфиденциальности</a></div></footer>'''
 
     css=r"""
 :root{--bg:#05070b;--bg2:#08111d;--card:#0d1725;--card2:#111f32;--line:rgba(255,255,255,.075);--text:#f6f9ff;--muted:#8899b2;--ice:#94d8ff;--ice2:#5ab6ff;--green:#57e89d;--danger:#ff6574}
