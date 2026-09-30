@@ -152,7 +152,7 @@ class Store:
         return self.get(oid)
 
     def mine(self, uid):
-        return [dict(r) for r in self.db.execute('SELECT * FROM orders WHERE user_id=? ORDER BY created DESC LIMIT 20',(uid,))]
+        return [dict(r) for r in self.db.execute("SELECT * FROM orders WHERE user_id=? AND quote_id NOT LIKE 'event-%' ORDER BY created DESC LIMIT 20",(uid,))]
 
     def create_mirror(self, uid):
         token=uuid.uuid4().hex[:16]
@@ -170,6 +170,18 @@ class Store:
     def add_managed_bot(self, bot_id, owner_id, username, token):
         self.db.execute('INSERT OR REPLACE INTO managed_bots(bot_id,owner_id,username,token,created) VALUES(?,?,?,?,?)',
                         (bot_id,owner_id,username,token,int(time.time())))
+
+    def create_event_order(self, uid, expiry_ms):
+        now=int(time.time()); oid=uuid.uuid4().hex
+        expiry_ms=int(expiry_ms)
+        if expiry_ms<=now*1000:
+            raise ShopError('Бонусный срок уже истёк.')
+        self.db.execute('''INSERT INTO orders
+          (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email,expiry_ms,product,operator,targets,display_name,delivered,migration_notified)
+          VALUES(?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?,?,0,1)''',
+          (oid,'event-'+oid,uid,1,0,0,now,str(uuid.uuid4()),uuid.uuid4().hex,'event-'+oid,
+           expiry_ms,'regular','',json.dumps(['regular']),self.display_name(uid)))
+        return oid
 
     def create_manual_order(self, uid, product='regular', hours=720, targets=None):
         now=int(time.time()); oid=uuid.uuid4().hex
