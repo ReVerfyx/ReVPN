@@ -9,7 +9,7 @@
   "lolz": {
     "token": "LZT_ACCESS_TOKEN_WITH_INVOICE_SCOPE",
     "merchant_id": 12345,
-    "test": true,
+    "test": false,
     "invoice_lifetime": 3600
   },
   "panel": {

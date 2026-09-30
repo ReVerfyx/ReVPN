@@ -28,7 +28,8 @@ def load_config(path):
     if not cfg['telegram']['admins'] or any(type(i) is not int or i<=0 for i in cfg['telegram']['admins']): raise ShopError('Нужен числовой admin ID.')
     if not cfg['telegram']['support'].startswith('@'): raise ShopError('Укажи support в формате @username.')
     if not cfg['lolz']['token'] or type(cfg['lolz']['merchant_id']) is not int or cfg['lolz']['merchant_id']<=0: raise ShopError('Нужны Lolz token и merchant_id.')
-    if type(cfg['lolz']['test']) is not bool or not 300<=cfg['lolz']['invoice_lifetime']<=43200: raise ShopError('Неверные настройки Lolz.')
+    cfg['lolz']['test']=False  # Live invoices only, including legacy configurations.
+    if not 300<=cfg['lolz']['invoice_lifetime']<=43200: raise ShopError('Неверные настройки Lolz.')
     if not 1<=cfg['panel']['inbound_id']: raise ShopError('Нужен inbound ID.')
     sub=cfg.get('subscription',{})
     if not re.fullmatch(r'https://[^/?#]+(?::[0-9]{1,5})?',sub.get('public_base','')): raise ShopError('Нужен HTTPS public_base для подписок.')
@@ -57,7 +58,6 @@ class Bot:
             cost=rubles(price(self.cfg['pricing'],720,0,key))
             text+='\n'+label+' — <b>'+cost+' ₽</b>'
             rows.append([button(label+' · '+cost+' ₽ / 30 дн.','product:'+key)])
-        if self.cfg['lolz']['test']: text+='\n\n<b>Тестовый режим:</b> реальный доступ не выдаётся.'
         rows += [[button('Добавить VPN в Happ','connect'),button('Мои покупки','mine')],
                  [button('Бесплатный Telegram-прокси','free')],[button('Как подключиться','help')]]
         self.tg.send(uid,text,rows)
@@ -128,7 +128,6 @@ class Bot:
             self.s.patch(o['id'],delivered=1)
         elif o['status']=='pending':
             text='<b>Ссылка на оплату готова</b>\n\n'+title
-            if self.cfg['lolz']['test']: text+='\n<b>Тестовый счёт — доступ не выдаётся.</b>\n'
             text+='\n'+escaped(o['invoice_url'])+'\n\nПосле оплаты подписка придёт сюда автоматически.'
             self.tg.send(uid,text,
                 [[{'text':'Оплатить '+rubles(o['amount'])+' ₽','url':o['invoice_url']}],
@@ -213,8 +212,6 @@ class Bot:
                 raise ShopError('Эти кнопки устарели. Выбери тариф заново в /start.')
             return self.quote(uid,int(hours),state['gb'])
         if data.startswith('confirm:'):
-            if self.cfg['lolz']['test'] and uid not in self.cfg['telegram']['admins']:
-                raise ShopError('Магазин тестируется. Покупки пока доступны только администратору.')
             o=self.s.order(data.split(':')[1],uid)
             if o['status']=='creating':
                 self.tg.send(uid,'<b>Создаём ссылку на оплату…</b>\nЭто может занять несколько секунд. Ссылка появится в этом чате.')

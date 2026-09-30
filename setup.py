@@ -45,7 +45,14 @@ def main():
     DEST.mkdir(mode=0o750,parents=True,exist_ok=True)
     path=DEST/'config.json'
     if path.exists():
-        print('Настройки уже есть. Изменение вручную: nano '+str(path))
+        cfg=json.loads(path.read_text())
+        if cfg['lolz'].get('test') is not False:
+            cfg['lolz']['test']=False
+            temp=path.with_suffix('.tmp')
+            temp.write_text(json.dumps(cfg,ensure_ascii=False,indent=2)+'\n')
+            os.chmod(temp,0o600)
+            temp.replace(path)
+        print('Настройки сохранены. Новые счета — только реальные.')
         return
     cfg=json.loads((Path(__file__).parent/'config.example.json').read_text())
     print('Секреты вводятся здесь, не отправляй их в чат. Пароли при вводе не видны.')
@@ -67,7 +74,8 @@ def main():
     cfg['telegram']['support']=ask('Твой Telegram username для поддержки (@...)')
     cfg['lolz']['token']=getpass.getpass('Access Token LZT с правом invoice: ').strip()
     cfg['lolz']['merchant_id']=int(ask('merchant_id магазина LZT'))
-    cfg['lolz']['test']=ask('Начать с тестовых счетов без выдачи VPN? y/n','y').lower()!='n'
+    cfg['lolz']['test']=False
+    print('Оплата: только реальные счета LZT.')
     dbpath=Path('/etc/x-ui/x-ui.db')
     panel=cfg['panel']
     if dbpath.exists():

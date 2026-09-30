@@ -4,3 +4,7 @@ config.json
 *.sqlite3*
 .env
 *.pem
+
+*.session*
+channel.json
+.venv/

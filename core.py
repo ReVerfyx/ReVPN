@@ -174,7 +174,11 @@ class Engine:
         if o['status'] == 'creating':
             # Provider payment_id is stable across timeouts/restarts.
             invoice=self.payment.ensure_invoice(o)
-            self.payment.validate(invoice,o)
+            try:
+                self.payment.validate(invoice,o)
+            except ShopError:
+                self.s.patch(oid,status='review',error='invoice_validation')
+                raise
             self.s.patch(oid,status='pending',invoice_id=int(invoice['invoice_id']),
                          invoice_url=invoice['url'],provider_amount=str(invoice['amount']),
                          invoice_expiry=int(invoice['expires_at']),attempts=0,error=None)
@@ -199,11 +203,8 @@ class Engine:
                 self.s.patch(oid,status='expired' if expired else 'pending',next_check=now+gap,attempts=0)
                 return self.s.get(oid)
             if inv['is_test']:
-                if not self.cfg['lolz']['test']:
-                    self.s.patch(oid,status='review',error='unexpected_test_invoice')
-                    raise ShopError('Тестовый платёж не может выдать реальный доступ.')
-                self.s.patch(oid,status='test_paid')
-                return self.s.get(oid)
+                self.s.patch(oid,status='review',error='unexpected_test_invoice')
+                raise ShopError('Тестовый платёж не может выдать реальный доступ.')
             self.s.patch(oid,status='paid',attempts=0,error=None)
             o=self.s.get(oid)
         if o['status'] in ('paid','provisioning'):

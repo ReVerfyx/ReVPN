@@ -97,7 +97,7 @@ class Lolz:
         payload={'currency':'rub','amount':o['amount']/100,'payment_id':o['id'],
             'comment':'ReVPN '+o.get('product','regular')+' '+description(o['hours'],o['gb']), 'merchant_id':self.cfg['merchant_id'],
             'url_success':'https://t.me/'+self.bot_name+'?start=order_'+o['id'],
-            'lifetime':self.cfg['invoice_lifetime'], 'required_telegram_id':int(o.get('user_id',0)), 'additional_data':self.metadata(o), 'is_test':self.cfg['test']}
+            'lifetime':self.cfg['invoice_lifetime'], 'required_telegram_id':int(o.get('user_id',0)), 'additional_data':self.metadata(o), 'is_test':False}
         try: return self.call('POST',data=payload)
         except APIError as original:
             # A failed POST may already have created the invoice. Never change payment_id.
@@ -110,7 +110,7 @@ class Lolz:
                 raise ValueError()
             if json.loads(i['additional_data'])!=json.loads(self.metadata(o)):
                 raise ValueError()
-            if type(i['is_test']) is not bool or i['is_test']!=self.cfg['test']:
+            if i['is_test'] is not False:
                 raise ValueError()
             if int(i['invoice_id'])<=0 or int(i['expires_at'])<=0:
                 raise ValueError()

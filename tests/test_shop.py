@@ -112,8 +112,8 @@ class ShopTests(unittest.TestCase):
     def test_test_paid_never_provisions(self):
         self.pay.cfg['test']=True; self.pay.ensure_invoice(self.o); self.pay.invoice['is_test']=True
         cfg=copy.deepcopy(CFG); cfg['lolz']['test']=True; self.e=Engine(self.s,self.pay,self.panel,cfg)
-        self.e.check(self.o['id']); self.pay.pay(); self.e.check(self.o['id'])
-        self.assertEqual(self.s.get(self.o['id'])['status'],'test_paid'); self.assertEqual(self.panel.writes,0)
+        with self.assertRaises(ShopError): self.e.check(self.o['id'])
+        self.assertEqual(self.panel.writes,0)
     def test_late_confirmation_of_paid_invoice(self):
         self.e.check(self.o['id']); self.s.patch(self.o['id'],status='expired')
         self.pay.pay(); self.e.check(self.o['id']); self.assertEqual(self.panel.writes,1)
