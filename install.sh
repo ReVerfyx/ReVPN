@@ -142,15 +142,9 @@ c=json.load(open('/etc/revpn-shop/config.json'))
 raise SystemExit(0 if c.get('mtproto',{}).get('free',{}).get('enabled') else 1)
 PY3
 then systemctl enable revpn-mtproto-free; systemctl restart revpn-mtproto-free; fi
-# Refresh an already installed optional channel agent without resetting its session.
+# Refresh the optional publisher, including token and old Telethon service migration.
 if [[ -f /opt/revpn-channel/channel_agent.py ]]; then
-  channel_was_active=false
-  if systemctl is-active --quiet revpn-channel; then
-    channel_was_active=true
-    systemctl stop revpn-channel
-  fi
-  install -m 644 "$src_dir/channel_agent.py" "$src_dir/channel_news.py" /opt/revpn-channel/
-  if [[ "$channel_was_active" == true ]]; then systemctl start revpn-channel; fi
+  bash "$src_dir/install-channel.sh" --update
 fi
 printf '\nУстановлено. Журнал: journalctl -u revpn-shop -n 50 --no-pager\n'
 printf 'Настройки: /etc/revpn-shop/config.json\n'

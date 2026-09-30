@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 import tempfile
@@ -8,11 +7,7 @@ from email.utils import formatdate
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from channel_news import parse_feed, fetch_news
-from channel_agent import DEFAULT, generate, open_db, reserve, pending_post, channel_entity
-try:
-    from telethon.tl.types import Channel, ChatAdminRights
-except ImportError:
-    Channel=ChatAdminRights=None
+from channel_agent import DEFAULT, generate, open_db, reserve, pending_post, Publisher, BotError, deliver
 from providers import Lolz, APIError
 
 class ChannelTests(unittest.TestCase):
@@ -43,12 +38,31 @@ class ChannelTests(unittest.TestCase):
         payload=json.loads(opener.open.call_args.args[0].data)
         self.assertNotIn('SECRET_DO_NOT_SEND',str(payload))
         self.assertFalse(payload['think']);self.assertFalse(payload['stream'])
-    @unittest.skipIf(Channel is None,'Install requirements-channel.txt to test Telethon')
     def test_only_channel_with_post_rights(self):
-        client=MagicMock();client.get_entity=AsyncMock(return_value=Channel(id=123,title='News',photo=None,date=None,broadcast=True,admin_rights=ChatAdminRights(post_messages=True)))
-        asyncio.run(channel_entity(client,{'channel':'@news'}))
-        client.get_entity.return_value.admin_rights=None
-        with self.assertRaises(ValueError): asyncio.run(channel_entity(client,{'channel':'@news'}))
+        p=Publisher('123:test')
+        with patch.object(p,'call',side_effect=[{'type':'channel','id':-100123},{'id':123,'username':'TestBot'},{'status':'administrator','can_post_messages':True}]) as calls:
+            self.assertEqual(p.channel({'channel':'@news'})['id'],-100123)
+            self.assertEqual([c.args[0] for c in calls.call_args_list],['getChat','getMe','getChatMember'])
+        with patch.object(p,'call',side_effect=[{'type':'channel','id':-100123},{'id':123,'username':'TestBot'},{'status':'member'}]):
+            with self.assertRaises(ValueError): p.channel({'channel':'@news'})
+        with patch.object(p,'call',return_value={'type':'private'}):
+            with self.assertRaises(ValueError): p.channel({'channel':'@news'})
+    def test_timeout_does_not_requeue_ambiguous_post(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));row=reserve(db,-100123,'Текст','source')
+            client=MagicMock();client.send.side_effect=BotError()
+            with self.assertRaises(BotError): deliver(db,client,row)
+            self.assertIsNone(pending_post(db,-100123))
+            self.assertEqual(db.execute('SELECT status FROM posts').fetchone()[0],'uncertain');db.close()
+    def test_rate_limit_can_retry_and_success_completes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));row=reserve(db,-100123,'Текст','source')
+            client=MagicMock();client.send.side_effect=BotError(429,30)
+            with self.assertRaises(BotError): deliver(db,client,row)
+            self.assertIsNotNone(pending_post(db,-100123))
+            client.send.side_effect=None;client.send.return_value={'message_id':42}
+            deliver(db,client,row)
+            self.assertEqual(db.execute('SELECT status FROM posts').fetchone()[0],'sent');db.close()
     def test_legacy_test_config_cannot_create_demo(self):
         p=Lolz({'token':'test','merchant_id':17,'test':True,'invoice_lifetime':3600},'TestBot')
         with patch.object(p,'get_invoice',side_effect=APIError('LZT',404)), patch.object(p,'call',return_value={}) as create:
