@@ -162,7 +162,9 @@
       "enabled": false,
       "port": 3443,
       "secret": "",
-      "ad_tag": ""
+      "ad_tag": "",
+      "transport": "fake_tls",
+      "tls_domain": ""
     }
   }
 }

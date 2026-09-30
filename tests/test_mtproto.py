@@ -4,6 +4,7 @@ import unittest
 
 from core import Store
 from mtproto_service import paid_snapshot, paid_users
+from delivery import proxy_link
 
 
 class MTProtoPerOrderTests(unittest.TestCase):
@@ -45,6 +46,32 @@ class MTProtoPerOrderTests(unittest.TestCase):
 
         self.assertEqual(set(users), {first['id'], second['id']})
         self.assertEqual(next_expiry, first['expiry_ms'] / 1000)
+
+    def test_free_proxy_link_uses_faketls_by_default(self):
+        cfg = {
+            'mtproto': {
+                'public_host': 'revpn.work.gd',
+                'paid': {'port': 2443},
+                'free': {'port': 3443},
+            }
+        }
+        link = proxy_link(cfg, '7dc753450bf32b1a213ea71ff0b02abf', 'free')
+        self.assertIn('port=3443', link)
+        self.assertIn(
+            'secret=ee7dc753450bf32b1a213ea71ff0b02abf726576706e2e776f726b2e6764',
+            link,
+        )
+
+    def test_paid_proxy_link_keeps_random_padding(self):
+        cfg = {
+            'mtproto': {
+                'public_host': 'revpn.work.gd',
+                'paid': {'port': 2443},
+                'free': {'port': 3443},
+            }
+        }
+        link = proxy_link(cfg, '0123456789abcdef0123456789abcdef', 'paid')
+        self.assertIn('secret=dd0123456789abcdef0123456789abcdef', link)
 
 
 if __name__ == '__main__':
