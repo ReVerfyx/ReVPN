@@ -7,7 +7,7 @@ from email.utils import formatdate
 from pathlib import Path
 from unittest.mock import patch, MagicMock, AsyncMock
 from channel_news import parse_feed, fetch_news
-from channel_agent import DEFAULT, generate, open_db, reserve, pending_post, Publisher, BotError, deliver
+from channel_agent import DEFAULT, generate, open_db, reserve, pending_post, Publisher, BotError, deliver, clean_summary, source_url
 from providers import Lolz, APIError
 
 class ChannelTests(unittest.TestCase):
@@ -68,3 +68,16 @@ class ChannelTests(unittest.TestCase):
         with patch.object(p,'get_invoice',side_effect=APIError('LZT',404)), patch.object(p,'call',return_value={}) as create:
             p.ensure_invoice({'id':'o','amount':5000,'hours':720,'gb':0,'user_id':1})
         self.assertIs(create.call_args.kwargs['data']['is_test'],False)
+
+class SummaryCleanupTests(unittest.TestCase):
+    def test_source_and_editorial_notes_removed(self):
+        article={'url':'https://habr.com/ru/news/123/?utm_source=rss'}
+        raw='Разработчики выпустили обновление.\n\nСмайлики: 🌊🌊\n(600 символов)\nИсточник: https://habr.com/ru/news/123/'
+        self.assertEqual(clean_summary(raw,article),'Разработчики выпустили обновление.')
+        self.assertEqual(source_url(article['url']),'https://habr.com/ru/news/123/')
+    def test_unknown_link_is_still_rejected(self):
+        with self.assertRaisesRegex(ValueError,'постороннюю ссылку'):
+            clean_summary('Новость https://other.example/test',{'url':'https://habr.com/ru/news/123/'})
+    def test_non_russian_is_distinct_error(self):
+        with self.assertRaisesRegex(ValueError,'не на русском'):
+            clean_summary('A new application is released',{'url':'https://habr.com/ru/news/123/'})
