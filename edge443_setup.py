@@ -39,7 +39,7 @@ def nginx_files():
 
 
 LISTEN_RE = re.compile(
-    r"^(?P<indent>\s*)listen\s+(?P<addr>(?:\[[^\]]+\]:)?443|443)(?P<rest>\s+[^;]*)?;\s*$"
+    r"^(?P<indent>\s*)listen\s+(?P<addr>443|(?:\[[^\]]+\]|[^\s:]+):443)(?P<rest>\s+[^;]*)?;\s*$"
 )
 
 
@@ -68,6 +68,15 @@ def can_connect(port):
     try:
         with socket.create_connection(("127.0.0.1",port),2):
             return True
+    except OSError:
+        return False
+
+
+def can_bind_public(port):
+    try:
+        with socket.socket(socket.AF_INET,socket.SOCK_STREAM) as s:
+            s.bind(("0.0.0.0",port))
+        return True
     except OSError:
         return False
 
@@ -112,6 +121,16 @@ def main():
         raise SystemExit("nginx config failed after edge443 migration; restored backups")
 
     subprocess.run(["systemctl","restart","nginx"],check=True)
+    edge_running=subprocess.run(
+        ["systemctl","is-active","--quiet","revpn-edge443.service"]
+    ).returncode==0
+    public_port=int(edge.get("listen_port",443))
+    if not edge_running and not can_bind_public(public_port):
+        for path,backup in backups.items():
+            shutil.copy2(backup,path)
+        subprocess.run(["nginx","-t"],check=True)
+        subprocess.run(["systemctl","restart","nginx"],check=True)
+        raise SystemExit(f"TCP {public_port} is still occupied after nginx migration; restored backups")
     if not can_connect(backend):
         for path,backup in backups.items():
             shutil.copy2(backup,path)
