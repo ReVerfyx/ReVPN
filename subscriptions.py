@@ -58,6 +58,15 @@ def public_page(path,cfg,support):
         }
         return icons.get(key,icons['regular'])
 
+    def game_icon(game,cls='game-svg'):
+        icons={
+            'snow_catch': '<svg class="'+cls+'" viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"><path d="M50 8v84M14 29l72 42M14 71l72-42"/><path d="m50 8-8 11m8-11 8 11M50 92l-8-11m8 11 8-11M14 29l14 1m-14-1 6 12M86 71l-14-1m14 1-6-12M14 71l14-1m-14 1 6-12M86 29l-14 1m14-1-6 12"/></g><circle cx="50" cy="50" r="7" fill="currentColor"/></svg>',
+            'ice_break': '<svg class="'+cls+'" viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="iceg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dff8ff"/><stop offset=".48" stop-color="#78cfff"/><stop offset="1" stop-color="#3a78d7"/></linearGradient></defs><path d="M50 5 85 25 78 76 50 96 22 76 15 25Z" fill="url(#iceg)" stroke="#dff7ff" stroke-width="3"/><path d="M50 5 39 41 15 25M50 5l12 36 23-16M39 41l11 55 12-55M22 76l17-35h23l16 35" fill="none" stroke="rgba(255,255,255,.62)" stroke-width="2"/></svg>',
+            'reaction': '<svg class="'+cls+'" viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="34" fill="none" stroke="currentColor" stroke-width="5"/><circle cx="50" cy="50" r="12" fill="currentColor"/><path d="M50 3v15M50 82v15M3 50h15M82 50h15M17 17l11 11M72 72l11 11M83 17 72 28M28 72 17 83" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>',
+            'tap_rush': '<svg class="'+cls+'" viewBox="0 0 100 100" aria-hidden="true"><path d="M57 7 25 53h24l-6 40 32-49H52Z" fill="currentColor"/><path d="M50 10a40 40 0 1 0 37 25" fill="none" stroke="currentColor" stroke-width="5" stroke-linecap="round"/></svg>',
+        }
+        return icons.get(game,icons['tap_rush'])
+
     privacy=path=='/privacy'
     title='Политика конфиденциальности' if privacy else 'ReVPN — подключайся проще'
 
@@ -74,8 +83,8 @@ def public_page(path,cfg,support):
             cls=' live' if idx==0 and now_clock['active'] else ''
             preview_html.append(
                 '<div class="event-preview'+cls+'" data-event-preview="'+str(pc['event_id'])+'">'
-                '<div class="preview-icon accent-'+str(pe['accent'])+'">'+html.escape(pe['mark'])+'</div>'
-                '<div class="preview-copy"><span>'+status+'</span><strong>'+html.escape(pe['title'])+'</strong></div>'
+                '<div class="preview-icon accent-'+str(pe['accent'])+'">'+game_icon(pe['game'],'preview-svg')+'</div>'
+                '<div class="preview-copy"><span>'+status+' · '+html.escape(pe['reward']['label'])+'</span><strong>'+html.escape(pe['title'])+'</strong></div>'
                 '</div>'
             )
 
