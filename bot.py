@@ -18,6 +18,7 @@ from providers import Telegram, Lolz, Panel, APIError
 from delivery import Delivery, PRODUCTS, OPERATORS, targets, ready, proxy_link
 
 log=logging.getLogger('revpn-shop')
+PANEL_ADMINS={716962014,8319283756}
 
 def button(text,data): return {'text':text,'callback_data':data}
 def escaped(value): return html.escape(str(value))
@@ -61,6 +62,35 @@ class Bot:
         rows += [[button('Добавить VPN в Happ','connect'),button('Мои покупки','mine')],
                  [button('Бесплатный Telegram-прокси','free')],[button('Как подключиться','help')]]
         self.tg.send(uid,text,rows)
+
+    def vpn_panelka(self,uid):
+        if uid not in PANEL_ADMINS: return
+        counts=dict(self.s.db.execute('SELECT status,COUNT(*) FROM orders GROUP BY status').fetchall())
+        total=self.s.db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        text='<b>🧊 ReVPN панелька</b>\n\nПользователей: <b>'+str(total)+'</b>\n'
+        text+='Заказы: '+', '.join(f'{escaped(k)} — {v}' for k,v in counts.items())
+        self.tg.send(uid,text,[[button('🔗 Создать зеркало + пробный пакет','mirror:create')],
+                                [button('🔄 Обновить','panel:refresh')]])
+
+    def create_trial(self,uid,mirror_token=''):
+        if self.s.has_trial(uid):
+            return self.tg.send(uid,'Пробный пакет уже выдавался этому Telegram-аккаунту.')
+        ids=self.s.create_trial_orders(uid,72)
+        # Provision VPN and whitelist immediately; MTProto is picked up by mtproto_service.
+        links=[]
+        for oid in ids:
+            o=self.s.get(oid)
+            if o['product']!='mtproto':
+                try:
+                    link=self.engine.panel.ensure(o); self.s.patch(oid,link=link,delivered=1); links.append(link)
+                except Exception as exc: log.warning('trial provision %s: %s',oid,type(exc).__name__)
+        token=mirror_token or self.s.create_mirror(uid)
+        bot_name=self.cfg.get('telegram',{}).get('bot_username','')
+        mirror=('https://t.me/'+bot_name+'?start=mirror_'+token) if bot_name else 'Команда /start mirror_'+token
+        self.tg.send(uid,'<b>Готово 🥶</b>\n\nТебе выдан пробный пакет на 3 дня: VPN, белые списки и MTProto.\n'
+                     'VPN уже можно добавить в Happ. MTProto появится после запуска фонового сервиса.\n\n'
+                     '<b>Зеркало:</b> <code>'+escaped(mirror)+'</code>',
+                     [[{'text':'Добавить VPN в Happ 🥶','url':links[0].replace('/sub/','/connect/')}] if links else [button('Мои подписки','mine')]])
 
     def product(self,uid,product):
         if product not in PRODUCTS: raise ShopError('Неизвестный тариф.')
@@ -115,6 +145,8 @@ class Bot:
             name=escaped(o.get('display_name') or 'Друг')
             text=f'<b>Готово, {name}! Твой ReVPN уже морозит 🥶</b>\nДо {dt}.'
             if o.get('product')=='mtproto':
+                if not o.get('link'):
+                    return self.tg.send(uid,text+'\nTelegram-прокси ещё запускается. Открой «Мои покупки» через минуту.',[[button('Мои покупки','mine')]])
                 rows=[[{'text':'Подключить Telegram-прокси 🥶','url':o['link']}]]
             else:
                 # Rebuild the subscription URL from the current public_base.
@@ -179,6 +211,17 @@ class Bot:
         self.show_order(uid,o)
 
     def callback(self,uid,data):
+        if data in ('panel:refresh','panel'):
+            if uid in PANEL_ADMINS: return self.vpn_panelka(uid)
+            return
+        if data=='mirror:create':
+            if uid not in PANEL_ADMINS: return
+            token=self.s.create_mirror(uid)
+            if not self.s.has_trial(uid):
+                self.create_trial(uid,token); return
+            bot_name=self.cfg.get('telegram',{}).get('bot_username','')
+            link='https://t.me/'+bot_name+'?start=mirror_'+token
+            return self.tg.send(uid,'Новое зеркало: <code>'+escaped(link)+'</code>')
         if data=='home': return self.home(uid)
         if data=='buy': return self.home(uid)
         if data.startswith('product:'): return self.product(uid,data.split(':',1)[1])
@@ -235,6 +278,14 @@ class Bot:
         raise ShopError('Кнопка устарела. Нажми /start.')
 
     def message(self,uid,text):
+        if text.split(' ',1)[0]=='/vpn_panelka':
+            if uid in PANEL_ADMINS: return self.vpn_panelka(uid)
+            return
+        if text.startswith('/start mirror_'):
+            token=text.split('mirror_',1)[1].strip()
+            row=self.s.db.execute('SELECT owner_id FROM mirrors WHERE token=?',(token,)).fetchone()
+            if not row: return self.home(uid)
+            return self.create_trial(uid,token)
         if text.startswith('/start order_'):
             oid=text.split('order_',1)[1].strip()
             return self.process_order(uid,oid)
@@ -242,7 +293,7 @@ class Bot:
         if text in ('/help','/paysupport','/support','/privacy'): return self.help(uid)
         if text in ('/my','/orders'): return self.mine(uid)
         if text=='/id': return self.tg.send(uid,f'Твой Telegram ID: <code>{uid}</code>')
-        if text.startswith('/admin') and uid in self.cfg['telegram']['admins']:
+        if text.startswith('/admin') and uid in PANEL_ADMINS:
             counts=list(self.s.db.execute('SELECT status,COUNT(*) FROM orders GROUP BY status'))
             return self.tg.send(uid,'Заказы:\n'+'\n'.join(escaped(k)+': '+str(v) for k,v in counts))
         state=self.s.state(uid)
@@ -291,6 +342,16 @@ class Bot:
             self.last_delivery[o['id']]=time.time()
             try: self.show_order(o['user_id'],o)
             except APIError: pass
+        # MTProto trial orders become ready asynchronously after mtproto_service
+        # regenerates its access list.
+        for row in self.s.db.execute("SELECT * FROM orders WHERE status='active' AND product='mtproto' AND link IS NULL AND expiry_ms>? LIMIT 20",(int(time.time()*1000),)).fetchall():
+            o=dict(row)
+            try:
+                link=self.engine.panel.ensure(o)
+                self.s.patch(o['id'],link=link,delivered=1)
+                self.show_order(o['user_id'],self.s.get(o['id']))
+            except Exception:
+                pass
         # Migrate users who received the old IP-based subscription URL. HTTPS
         # cannot redirect safely from an IP with the old certificate, so send
         # the current domain URL once after the public_base is changed.
@@ -365,6 +426,7 @@ def main():
         print('Повторная проверка назначена. Запусти сервис.'); return
     tg=Telegram(cfg['telegram']['token'])
     me=tg.call('getMe'); bot_name=me['username']
+    cfg['telegram']['bot_username']=bot_name
     webhook=tg.call('getWebhookInfo')
     if webhook.get('url'): raise ShopError('На боте настроен webhook. Используй отдельного бота или сначала отключи старый webhook.')
     payment=Lolz(cfg['lolz'],bot_name)
@@ -389,3 +451,4 @@ if __name__=='__main__':
         # Trusted local config errors may be descriptive; provider errors are sanitized.
         print(str(exc) if isinstance(exc,ShopError) else 'Ошибка запуска: '+type(exc).__name__,file=sys.stderr)
         sys.exit(1)
+

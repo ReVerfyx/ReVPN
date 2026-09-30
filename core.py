@@ -77,6 +77,11 @@ class Store:
           link TEXT NOT NULL,quota INTEGER NOT NULL,upload INTEGER NOT NULL DEFAULT 0,
           download INTEGER NOT NULL DEFAULT 0,updated INTEGER NOT NULL DEFAULT 0,
           PRIMARY KEY(order_id,node_id));
+        CREATE TABLE IF NOT EXISTS mirrors(
+          token TEXT PRIMARY KEY, owner_id INTEGER NOT NULL, created INTEGER NOT NULL,
+          trial_order_ids TEXT NOT NULL DEFAULT '[]');
+        CREATE TABLE IF NOT EXISTS trial_grants(
+          user_id INTEGER PRIMARY KEY, created INTEGER NOT NULL, mirror_token TEXT NOT NULL DEFAULT '');
         """)
 
     def display_name(self, uid, name=None):
@@ -145,6 +150,33 @@ class Store:
 
     def mine(self, uid):
         return [dict(r) for r in self.db.execute('SELECT * FROM orders WHERE user_id=? ORDER BY created DESC LIMIT 20',(uid,))]
+
+    def create_mirror(self, uid):
+        token=uuid.uuid4().hex[:16]
+        self.db.execute('INSERT INTO mirrors(token,owner_id,created) VALUES(?,?,?)',(token,uid,int(time.time())))
+        return token
+
+    def grant_trial(self, uid, order_ids, mirror_token=''):
+        now=int(time.time())
+        self.db.execute('INSERT OR IGNORE INTO trial_grants(user_id,created,mirror_token) VALUES(?,?,?)',(uid,now,mirror_token))
+        self.db.execute('UPDATE mirrors SET trial_order_ids=? WHERE token=?',(json.dumps(order_ids),mirror_token)) if mirror_token else None
+
+    def has_trial(self, uid):
+        return self.db.execute('SELECT 1 FROM trial_grants WHERE user_id=?',(uid,)).fetchone() is not None
+
+    def create_trial_orders(self, uid, hours=72, operator=''):
+        if self.has_trial(uid):
+            return []
+        now=int(time.time()); expiry=(now+hours*3600)*1000; ids=[]
+        for product,targets in (('regular',['regular']),('whitelist',['max','yandex','disk','vk','vkvideo']),('mtproto',[])):
+            oid=uuid.uuid4().hex; qid='trial-'+oid
+            self.db.execute('''INSERT INTO orders
+              (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email,expiry_ms,product,operator,targets,display_name,delivered)
+              VALUES(?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?,?,0)''',
+              (oid,qid,uid,hours,0,0,now,str(uuid.uuid4()),uuid.uuid4().hex,'trial-'+oid,expiry,product,operator,json.dumps(targets),self.display_name(uid)))
+            ids.append(oid)
+        self.grant_trial(uid,ids)
+        return ids
 
     def due(self, limit=5):
         return [dict(r) for r in self.db.execute("""SELECT * FROM orders WHERE
@@ -224,3 +256,4 @@ class Engine:
         o=self.s.get(oid)
         attempts=o['attempts']+1
         self.s.patch(oid,attempts=attempts,next_check=int(time.time())+min(3600,15*2**min(attempts,8)),error=kind)
+
