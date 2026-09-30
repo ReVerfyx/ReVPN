@@ -80,12 +80,16 @@ class CheckoutTests(unittest.TestCase):
         from urllib.parse import urlsplit,parse_qs
         self.cfg['mtproto']['public_host']='2.26.85.86'
         for kind in ('paid','free'):
+            self.cfg['mtproto'][kind]['public_port']=443
+            self.cfg['mtproto'][kind]['transport']='fake_tls'
+            self.cfg['mtproto'][kind]['tls_domain']='www.microsoft.com' if kind=='paid' else 'www.cloudflare.com'
             link=proxy_link(self.cfg,'a'*32,kind)
             q=parse_qs(urlsplit(link).query)
             self.assertEqual(q['server'],['revpn.work.gd'])
-            expected=('dd'+'a'*32) if kind=='paid' else ('ee'+'a'*32+'revpn.work.gd'.encode().hex())
+            domain=self.cfg['mtproto'][kind]['tls_domain']
+            expected='ee'+'a'*32+domain.encode().hex()
             self.assertEqual(q['secret'],[expected])
-            self.assertEqual(q['port'],[str(self.cfg['mtproto'][kind]['port'])])
+            self.assertEqual(q['port'],['443'])
 
     def test_cancel_admin_prompt(self):
         self.b.admin_target_prompt(716962014,'issue')
