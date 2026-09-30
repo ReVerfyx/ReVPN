@@ -20,9 +20,12 @@ class Plain(HTMLParser):
     def handle_data(self,data):
         if not self.hidden: self.parts.append(data)
 
+def strip_teasers(value):
+    return re.sub(r'(?:читать|подробнее|читайте)\s+(?:далее|полностью|на сайте)|read\s+more|продолжение\s+на\s+сайте', '',value,flags=re.I).strip()
+
 def plain(value):
     p=Plain();p.feed(value or '')
-    return re.sub(r'\s+',' ',unescape(' '.join(p.parts))).strip()
+    return strip_teasers(re.sub(r'\s+',' ',unescape(' '.join(p.parts))).strip())
 
 def public_image(value,base):
     url=urljoin(base,unescape(value or '').strip())
@@ -83,12 +86,12 @@ def parse_feed(raw,now=None):
         markup=value('encoded') or value('content') or value('description') or value('summary')
         body=plain(markup)[:7000]
         photo=feed_photo(item,markup,link)
-        if not title or len(body)<60: continue
+        if not title: continue
         result.append({'title':title,'body':body,'photo':photo,'url':link,'published':stamp,
                        'key':hashlib.sha256(link.encode()).hexdigest()})
     return result
 
-def fetch_news(feeds,seen=(),require_photo=False):
+def fetch_articles(feeds):
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
     articles=[]
     for url in feeds:
@@ -100,4 +103,8 @@ def fetch_news(feeds,seen=(),require_photo=False):
             articles.extend(parse_feed(raw))
         except Exception: continue
     articles.sort(key=lambda a:a['published'],reverse=True)
+    return articles
+
+def fetch_news(feeds,seen=(),require_photo=False):
+    articles=fetch_articles(feeds)
     return next((a for a in articles if a['key'] not in seen and (a.get('photo') or not require_photo)),None)
