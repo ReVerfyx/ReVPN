@@ -168,3 +168,17 @@ class CalendarTests(unittest.TestCase):
         cleaned=clean_summary(text,{'url':'https://example.org/a'})
         self.assertNotIn('Читать далее',cleaned)
         self.assertEqual(cleaned.count('Текст новости.'),1)
+
+
+class BreakingAviationTests(unittest.TestCase):
+    def test_possible_hijack_signal_is_an_urgent_report(self):
+        from channel_agent import breaking_kind,choose_breaking
+        title='Самолёт из Дубая в Тель-Авив подал сигнал о возможном захвате'
+        self.assertEqual(breaking_kind(title),'aviation')
+        a={'title':title,'body':'Причина уточняется.','key':'a','url':'https://one.test/news','published':10000}
+        b={**a,'title':'Самолет из Дубая в Тель-Авив подал сигнал бедствия','key':'b','url':'https://two.test/news'}
+        self.assertIsNotNone(choose_breaking([a,b],set(),10010))
+        self.assertIsNone(choose_breaking([a],set(),10010))
+    def test_routine_airline_story_not_urgent(self):
+        from channel_agent import breaking_kind
+        self.assertEqual(breaking_kind('Самолёт из Дубая в Тель-Авив открыл новый рейс'),'')
