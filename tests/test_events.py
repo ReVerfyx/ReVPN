@@ -96,10 +96,19 @@ class EventTests(unittest.TestCase):
         data=init_data(77,now)
         state=self.service.state(data,now)
         t=now+0.20
-        for _ in range(30):
-            state=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],t)
-            self.assertTrue(state["accepted"])
-            t+=0.20
+        def earn(count):
+            nonlocal state,t
+            for _ in range(count):
+                challenge=state["user"].get("challenge")
+                if challenge:
+                    target=challenge["prompt"].rsplit(" ",1)[-1]
+                    choice=next(o["id"] for o in challenge["options"] if o["label"]==target)
+                    state=self.service.challenge(data,state["user"]["nonce"],choice,t)
+                    t+=0.20
+                state=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],t)
+                self.assertTrue(state["accepted"])
+                t+=0.20
+        earn(30)
         claimed=self.service.claim(data,t+0.20)
         self.assertEqual(claimed["user"]["balance_seconds"],0)
         self.assertIsNotNone(claimed["user"]["bonus"])
@@ -117,10 +126,7 @@ class EventTests(unittest.TestCase):
         # Earn another claim; the same order/client must be extended, not duplicated.
         state=self.service.state(data,t+1)
         t+=1.2
-        for _ in range(30):
-            state=self.service.tap(data,state["clock"]["event_id"],state["user"]["nonce"],t)
-            self.assertTrue(state["accepted"])
-            t+=0.20
+        earn(30)
         self.service.claim(data,t+0.20)
         second_order=self.service.db.execute(
             "SELECT bonus_order_id FROM event_users WHERE user_id=77"
