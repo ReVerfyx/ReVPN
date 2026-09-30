@@ -118,13 +118,15 @@ def public_page(path,cfg,support):
   <a class="header-link" href="https://t.me/'''+bot+'''?start=app_account">Мои подписки</a>
 </header>
 <section class="hero">
-  <span class="eyebrow">БЫСТРО · ПРОСТО · В ОДНОМ МЕСТЕ</span>
-  <h1>Твоё подключение.<br><span>Без лишнего шума.</span></h1>
-  <p>VPN, Telegram-прокси, бонусы и живые ивенты прямо внутри Mini App.</p>
-  <div class="hero-pills"><span><i></i> HTTPS Mini App</span><span>⚡ Мгновенная выдача</span><span>🧊 ReVPN</span></div>
+  <div class="hero-title"><span class="eyebrow">REVVPN · ПОДКЛЮЧЕНИЕ</span><h1>Выбери тариф</h1></div>
+  <div class="hero-note">
+    <span class="hero-note-icon">✦</span>
+    <div><strong>Подключение без лишних шагов</strong><p>Срок, трафик и итоговую цену подтвердим в боте перед оплатой.</p></div>
+  </div>
+  <div class="hero-pills"><span><i></i> Сервис онлайн</span><span>⚡ Быстрая выдача</span><span>🧊 Бонусные ивенты</span></div>
 </section>
 <section class="plans-section">
-  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Выбери свой режим</h2></div><p>Итог подтвердим в боте перед оплатой.</p></div>
+  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Доступные варианты</h2></div><p>VPN, белые списки и Telegram-прокси.</p></div>
   <div class="plans-grid">'''+''.join(product_cards)+'''</div>
 </section>
 <section class="events-section">
@@ -196,10 +198,17 @@ main{width:min(100%,820px);margin:auto;padding:0 18px 54px}
 .brand small{margin-top:4px;font-size:9px;letter-spacing:.16em;color:var(--muted)}
 .header-link{font-size:13px;font-weight:760;color:#c8dcf3;text-decoration:none;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}
 .hero{position:relative;padding:18px 0 14px;margin-top:2px}
+
+.hero-title{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:11px}
+.hero-title .eyebrow{padding-bottom:5px}
+.hero-note{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:13px 14px;border-radius:18px;background:linear-gradient(145deg,rgba(13,28,44,.94),rgba(7,17,29,.94));border:1px solid rgba(102,184,239,.19);box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 14px 34px rgba(0,0,0,.16)}
+.hero-note-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(121,210,255,.2),rgba(67,123,193,.09));border:1px solid rgba(119,203,255,.17);color:#90d9ff;font-size:17px;animation:iconFloat 4s ease-in-out infinite}
+.hero-note strong{display:block;color:#eef8ff;font-size:13px;line-height:1.2}
+.hero-note p{margin:4px 0 0;color:#8fa2bb;font-size:10.5px;line-height:1.4}
 .eyebrow{font-size:10px;letter-spacing:.2em;font-weight:850;color:#76c6ff}
-.hero h1{font-size:clamp(30px,7vw,48px);line-height:1.01;letter-spacing:-.048em;margin:9px 0 12px;max-width:650px;color:#f7fbff}
+.hero h1{font-size:clamp(28px,6vw,38px);line-height:1;letter-spacing:-.045em;margin:5px 0 0;max-width:650px;color:#f7fbff}
 .hero h1 span{color:#7bcaff}
-.hero>p{max-width:590px;margin:0;color:#9aabc1;font-size:clamp(13px,3vw,16px)}
+.hero>p{max-width:590px;margin:0;color:#9aabc1;font-size:13px}
 .hero-pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
 .hero-pills span{font-size:10px;color:#b7c8db;background:rgba(255,255,255,.032);border:1px solid rgba(145,199,240,.1);padding:7px 9px;border-radius:999px}
 .hero-pills i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 12px rgba(87,232,157,.7)}
