@@ -376,6 +376,12 @@ class EventService:
             row = self._ensure_user(uid, now_ms)
             if not hmac.compare_digest(str(nonce), str(row["nonce"])):
                 raise EventError("Проверка устарела.", 409)
+            cooldown = int(row["cooldown_until_ms"])
+            if cooldown > now_ms:
+                self.db.execute("COMMIT")
+                payload = self._response(uid, current)
+                payload["message"] = "Подожди окончания короткой паузы."
+                return payload
             answer = int(row["challenge_answer"])
             if answer < 0:
                 raise EventError("Проверка уже пройдена.", 409)
