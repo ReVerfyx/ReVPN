@@ -35,40 +35,14 @@ install -d -m 755 /opt/revpn-shop/vendor
 install -m 644 "$src_dir/vendor/mtprotoproxy.py" /opt/revpn-shop/vendor/mtprotoproxy.py
 python3 /opt/revpn-shop/setup.py
 edge443_ready=0
+python3 /opt/revpn-shop/edge443_setup.py
 if python3 - <<'PYEDGE'
 import json
 c=json.load(open('/etc/revpn-shop/config.json'))
 raise SystemExit(0 if c.get('edge443',{}).get('enabled') else 1)
 PYEDGE
 then
-  if python3 /opt/revpn-shop/edge443_setup.py; then
-    edge443_ready=1
-  else
-    echo
-    echo 'ВНИМАНИЕ: TCP 443 занят другим сервисом. Обновление ReVPN продолжится без edge443.'
-    echo 'Сайт, бот и Mini App будут обновлены; MTProto временно останется на своих старых портах.'
-    if command -v ss >/dev/null; then
-      echo 'Кто сейчас держит 443:'
-      ss -ltnp 'sport = :443' || true
-    fi
-    python3 - <<'PYFALLBACK'
-import json, os
-p='/etc/revpn-shop/config.json'
-c=json.load(open(p))
-edge=c.setdefault('edge443',{})
-edge['enabled']=False
-for kind in ('paid','free'):
-    sec=c.get('mtproto',{}).get(kind,{})
-    if sec.get('port'):
-        sec['public_port']=sec['port']
-tmp=p+'.tmp'
-with open(tmp,'w') as f:
-    json.dump(c,f,ensure_ascii=False,indent=2)
-    f.write('\n')
-os.chmod(tmp,0o640)
-os.replace(tmp,p)
-PYFALLBACK
-  fi
+  edge443_ready=1
 fi
 chown root:revpnshop /etc/revpn-shop /etc/revpn-shop/config.json
 chmod 750 /etc/revpn-shop
