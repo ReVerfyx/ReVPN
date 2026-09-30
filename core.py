@@ -65,9 +65,9 @@ class Store:
 
         # Additive migration from v1, keeping previously paid orders intact.
         for table, fields in {
-            'users': {'display_name': "TEXT NOT NULL DEFAULT ''"},
-            'quotes': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'"},
-            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''", 'invoice_sent': 'INTEGER NOT NULL DEFAULT 0', 'migration_notified': 'INTEGER NOT NULL DEFAULT 0'}
+            'users': {'display_name': "TEXT NOT NULL DEFAULT ''", 'bonus_kopecks': 'INTEGER NOT NULL DEFAULT 0'},
+            'quotes': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'base_amount': 'INTEGER NOT NULL DEFAULT 0', 'bonus_used': 'INTEGER NOT NULL DEFAULT 0'},
+            'orders': {'product': "TEXT NOT NULL DEFAULT 'regular'", 'operator': "TEXT NOT NULL DEFAULT ''", 'targets': "TEXT NOT NULL DEFAULT '[]'", 'display_name': "TEXT NOT NULL DEFAULT ''", 'invoice_sent': 'INTEGER NOT NULL DEFAULT 0', 'migration_notified': 'INTEGER NOT NULL DEFAULT 0', 'base_amount': 'INTEGER NOT NULL DEFAULT 0', 'bonus_used': 'INTEGER NOT NULL DEFAULT 0'}
         }.items():
             existing={r[1] for r in self.db.execute('PRAGMA table_info('+table+')')}
             for key, typ in fields.items():
@@ -118,9 +118,56 @@ class Store:
         r = self.db.execute('SELECT state FROM users WHERE id=?',(uid,)).fetchone()
         return json.loads(r[0]) if r else {}
 
-    def quote(self, uid, hours, gb, amount, product="regular", operator="", targets=None):
-        qid = uuid.uuid4().hex
-        self.db.execute('INSERT INTO quotes(id,user_id,hours,gb,amount,created,product,operator,targets) VALUES(?,?,?,?,?,?,?,?,?)',(qid,uid,hours,gb,amount,int(time.time()),product,operator,json.dumps(targets or [])))
+    def _release_stale_bonus_locked(self, uid):
+        cutoff=int(time.time())-900
+        rows=self.db.execute(
+            """SELECT q.id,q.bonus_used FROM quotes q
+               LEFT JOIN orders o ON o.quote_id=q.id
+               WHERE q.user_id=? AND q.created<? AND q.bonus_used>0 AND o.id IS NULL""",
+            (uid,cutoff),
+        ).fetchall()
+        amount=sum(int(r['bonus_used']) for r in rows)
+        if amount:
+            self.db.execute("INSERT INTO users(id,state,bonus_kopecks) VALUES(?,'{}',?) ON CONFLICT(id) DO UPDATE SET bonus_kopecks=bonus_kopecks+excluded.bonus_kopecks",(uid,amount))
+            self.db.executemany('UPDATE quotes SET bonus_used=0 WHERE id=?',[(r['id'],) for r in rows])
+        return amount
+
+    def bonus_balance(self, uid):
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            self._release_stale_bonus_locked(uid)
+            self.db.execute("INSERT OR IGNORE INTO users(id,state) VALUES(?,'{}')",(uid,))
+            row=self.db.execute('SELECT bonus_kopecks FROM users WHERE id=?',(uid,)).fetchone()
+            self.db.execute('COMMIT')
+            return int(row[0] if row else 0)
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def add_bonus(self, uid, kopecks):
+        kopecks=int(kopecks)
+        if kopecks<0: raise ShopError('Бонус не может быть отрицательным.')
+        self.db.execute("INSERT INTO users(id,state,bonus_kopecks) VALUES(?,'{}',?) ON CONFLICT(id) DO UPDATE SET bonus_kopecks=bonus_kopecks+excluded.bonus_kopecks",(uid,kopecks))
+        return self.bonus_balance(uid)
+
+    def quote(self, uid, hours, gb, amount, product="regular", operator="", targets=None, min_cash=100):
+        amount=int(amount); min_cash=max(0,int(min_cash)); qid=uuid.uuid4().hex
+        self.db.execute('BEGIN IMMEDIATE')
+        try:
+            self._release_stale_bonus_locked(uid)
+            self.db.execute("INSERT OR IGNORE INTO users(id,state) VALUES(?,'{}')",(uid,))
+            balance=int(self.db.execute('SELECT bonus_kopecks FROM users WHERE id=?',(uid,)).fetchone()[0])
+            bonus=min(balance,max(0,amount-min_cash))
+            payable=amount-bonus
+            self.db.execute('UPDATE users SET bonus_kopecks=bonus_kopecks-? WHERE id=?',(bonus,uid))
+            self.db.execute(
+                'INSERT INTO quotes(id,user_id,hours,gb,amount,created,product,operator,targets,base_amount,bonus_used) VALUES(?,?,?,?,?,?,?,?,?,?,?)',
+                (qid,uid,hours,gb,payable,int(time.time()),product,operator,json.dumps(targets or []),amount,bonus),
+            )
+            self.db.execute('COMMIT')
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
         return qid
 
     def order(self, qid, uid):
@@ -140,9 +187,10 @@ class Store:
                     raise ShopError('Уже есть 3 неоплаченных заказа. Открой «Мои покупки» или дождись истечения счетов.')
                 oid = uuid.uuid4().hex
                 self.db.execute('''INSERT INTO orders
-                (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email)
-                VALUES(?,?,?,?,?,?,'creating',?,?,?,?)''',
-                (oid,qid,uid,q['hours'],q['gb'],q['amount'],int(time.time()),str(uuid.uuid4()),uuid.uuid4().hex,'shop-'+oid))
+                (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email,base_amount,bonus_used)
+                VALUES(?,?,?,?,?,?,'creating',?,?,?,?,?,?)''',
+                (oid,qid,uid,q['hours'],q['gb'],q['amount'],int(time.time()),str(uuid.uuid4()),uuid.uuid4().hex,'shop-'+oid,
+                 int(q['base_amount'] or q['amount']),int(q['bonus_used'] or 0)))
                 self.db.execute('UPDATE orders SET product=?,operator=?,targets=?,display_name=? WHERE id=?',
                     (q['product'],q['operator'],q['targets'],self.display_name(uid),oid))
             self.db.execute('COMMIT')
