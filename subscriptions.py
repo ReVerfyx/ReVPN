@@ -61,7 +61,7 @@ def public_page(path,cfg,support):
     scripts='' if privacy else """<script src="https://telegram.org/js/telegram-web-app.js"></script><script>
 const app=window.Telegram?.WebApp;
 if(app){app.ready();app.expand();}
-let evState=null,timerLeft=0,busy=false;
+let evState=null,timerLeft=0,cooldownLeft=0,busy=false;
 const $=id=>document.getElementById(id);
 function fmt(sec){sec=Math.max(0,Math.floor(sec||0));const m=Math.floor(sec/60),s=sec%60;return m+':'+String(s).padStart(2,'0');}
 async function api(path,extra={}){
@@ -73,16 +73,16 @@ function placeButton(slot){
   const b=$('event-tap'); slot=Number(slot||0)%9;
   b.style.gridColumn=String(slot%3+1);b.style.gridRow=String(Math.floor(slot/3)+1);
 }
-function renderChallenge(c){
+function renderChallenge(c,disabled=false){
   const box=$('event-challenge');box.innerHTML='';
   if(!c?.required){box.hidden=true;return;}
   box.hidden=false;const p=document.createElement('p');p.textContent=c.prompt;box.appendChild(p);
   const row=document.createElement('div');row.className='challenge-row';
-  c.options.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.label;b.onclick=()=>solveChallenge(o.id);row.appendChild(b);});
+  c.options.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.label;b.disabled=disabled;b.onclick=()=>solveChallenge(o.id);row.appendChild(b);});
   box.appendChild(row);
 }
 function render(d){
-  evState=d; const c=d.clock,u=d.user,e=d.event; timerLeft=c.seconds_left||0;
+  evState=d; const c=d.clock,u=d.user,e=d.event; timerLeft=c.seconds_left||0; cooldownLeft=u.cooldown_ms||0;
   $('event-title').textContent=c.active?e.title:'Перерыв между ивентами';
   $('event-desc').textContent=c.active?e.description:'Следующий ивент начнётся через '+fmt(timerLeft)+'.';
   $('event-balance').textContent=u.balance_seconds+' сек';$('event-taps').textContent=u.event_taps;
@@ -91,7 +91,7 @@ function render(d){
   const claim=$('event-claim');claim.disabled=u.balance_seconds<u.min_claim_seconds&&!(u.bonus?.syncing);
   claim.textContent=u.bonus?.syncing?'Повторить синхронизацию':('Активировать секунды · от '+u.min_claim_seconds);
   const link=$('event-connect'); if(u.bonus?.connect_url){link.href=u.bonus.connect_url;link.hidden=false;}else link.hidden=true;
-  renderChallenge(u.challenge);
+  renderChallenge(u.challenge,cooldownLeft>0);
   $('event-note').textContent=u.cooldown_ms>0?'Антиавтокликер: пауза '+Math.ceil(u.cooldown_ms/1000)+' сек.':(u.bonus?.syncing?'Секунды сохранены, синхронизация с VPN ещё не завершена.':'1 засчитанный тап = 1 секунда бонусного VPN.');
 }
 async function loadEvent(){try{render(await api('/api/events/state'));}catch(e){$('event-title').textContent='Ивенты доступны в Telegram';$('event-desc').textContent=e.message;$('event-tap').disabled=true;}}
@@ -103,7 +103,7 @@ $('event-tap')?.addEventListener('click',async()=>{
 });
 async function solveChallenge(choice){if(!evState||busy)return;busy=true;try{render(await api('/api/events/challenge',{nonce:evState.user.nonce,choice}));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}}
 $('event-claim')?.addEventListener('click',async()=>{if(busy)return;busy=true;$('event-claim').disabled=true;try{render(await api('/api/events/claim'));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}});
-setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState)loadEvent();},1000);
+setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState)loadEvent();if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState)loadEvent();}},1000);
 document.addEventListener('click',e=>{const a=e.target.closest('a');if(a&&a.href.startsWith('https://t.me/')&&app){e.preventDefault();app.openTelegramLink(a.href);app.close();}});
 loadEvent();
 </script>"""
