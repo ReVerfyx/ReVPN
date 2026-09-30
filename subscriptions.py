@@ -89,48 +89,44 @@ def public_page(path,cfg,support):
             )
 
         product_cards=[]
+        labels={'regular':'Обычный VPN','whitelist':'Белые списки','bundle':'VPN + белые списки','mtproto':'Telegram-прокси'}
+        descriptions={'regular':'Для повседневных задач','whitelist':'5 профилей подключения','bundle':'Всё в одной подписке','mtproto':'Отдельный ключ MTProto'}
         for key,label in PRODUCTS.items():
             cost=rubles(price(cfg['pricing'],720,0,key)) if cfg.get('pricing') else '—'
-            tag='Популярный' if key=='regular' else ('Telegram' if key=='mtproto' else 'VPN')
+            selected=key=='regular'
             product_cards.append(
-                '<article class="plan-card plan-'+key+(' featured' if key=='regular' else '')+'">'
-                '<div class="plan-top"><div class="plan-icon">'+product_icon(key)+'</div><span class="plan-tag">'+tag+'</span></div>'
-                '<h3>'+html.escape(label)+'</h3>'
-                '<div class="plan-price"><strong>'+cost+' ₽</strong><span>/ 30 дней</span></div>'
-                '<p>'+('Отдельный ключ на срок подписки.' if key=='mtproto' else 'Срок и трафик выберешь перед оплатой в боте.')+'</p>'
-                +link('Выбрать тариф','https://t.me/'+bot+'?start=app_'+key,'plan-action')+
-                '</article>'
+                '<button type="button" class="plan-card'+(' selected' if selected else '')+'" role="radio" aria-checked="'+str(selected).lower()+'" data-plan="'+key+'" data-label="'+html.escape(labels.get(key,label),quote=True)+'" data-url="https://t.me/'+bot+'?start=app_'+key+'">'
+                '<span class="plan-top"><span class="plan-icon">'+product_icon(key)+'</span><span class="selection-dot"></span></span>'
+                '<span class="plan-name">'+html.escape(labels.get(key,label))+'</span>'
+                '<span class="plan-price"><strong>'+cost+' ₽</strong><span>/ 30 дней</span></span>'
+                '<span class="plan-description">'+html.escape(descriptions.get(key,''))+'</span></button>'
             )
 
-        content='''<div id="app-loader" class="app-loader" aria-live="polite">
+        content='''<div id="app-loader" class="app-loader hidden" aria-live="polite">
   <div class="loader-stage">
     <div class="loader-logo" aria-hidden="true">
       <span class="loader-cube cube-a"></span><span class="loader-cube cube-b"></span><span class="loader-cube cube-c"></span>
       <span class="loader-core">R</span>
     </div>
     <div class="loader-brand">ReVPN</div>
-    <div class="loader-caption">Подготавливаем защищённое подключение</div>
+    <div class="loader-caption">Твой доступ к сети</div>
     <div class="loader-track"><span id="loader-fill"></span><i></i></div>
   </div>
 </div>
 <header class="app-header">
-  <a class="brand" href="/app"><span class="brandmark">R</span><span><strong>ReVPN</strong><small>VPN · Telegram</small></span></a>
-  <a class="header-link" href="https://t.me/'''+bot+'''?start=app_account">Мои подписки</a>
+  <a class="brand" href="/app" aria-label="ReVPN — главная"><span class="brandmark">R</span><strong>Re<span>VPN</span></strong></a>
+  <button class="header-link" type="button" id="app-close">Закрыть <span aria-hidden="true">↗</span></button>
 </header>
-<section class="hero">
-  <div class="hero-title"><span class="eyebrow">REVVPN · ПОДКЛЮЧЕНИЕ</span><h1>Выбери тариф</h1></div>
-  <div class="hero-note">
-    <span class="hero-note-icon">✦</span>
-    <div><strong>Подключение без лишних шагов</strong><p>Срок, трафик и итоговую цену подтвердим в боте перед оплатой.</p></div>
-  </div>
-  <div class="hero-pills"><span><i></i> Сервис онлайн</span><span>⚡ Быстрая выдача</span><span>🧊 Бонусные ивенты</span></div>
+<section id="screen-plans" class="app-screen" aria-labelledby="plans-heading">
+  <div class="screen-heading"><span class="eyebrow">ТВОЙ ДОСТУП К СЕТИ</span><h1 id="plans-heading">Выбери тариф</h1><p>Подключение начинается здесь.</p></div>
+  <div class="hero-note"><span class="hero-note-icon">✦</span><div><strong>Один шаг до подключения</strong><p>Срок, трафик и итоговую цену выберешь в боте перед оплатой.</p></div></div>
+  <div class="plans-grid" role="radiogroup" aria-label="Тарифы">'''+''.join(product_cards)+'''</div>
+  <a id="plan-continue" class="primary-action" href="https://t.me/'''+bot+'''?start=app_regular">Продолжить <span aria-hidden="true">→</span></a>
+  <p id="plan-selection" class="selection-note" aria-live="polite">Выбран: Обычный VPN</p>
+  <button type="button" class="bonus-teaser" data-screen="events"><span class="gift-icon">✧</span><span><strong>Играй. Забирай бонусы.</strong><small>Секунды VPN и бонусные рубли</small></span><span aria-hidden="true">→</span></button>
 </section>
-<section class="plans-section">
-  <div class="section-head"><div><span class="eyebrow">ТАРИФЫ</span><h2>Доступные варианты</h2></div><p>VPN, белые списки и Telegram-прокси.</p></div>
-  <div class="plans-grid">'''+''.join(product_cards)+'''</div>
-</section>
-<section class="events-section">
-  <div class="section-head"><div><span class="eyebrow">EVENT HUB</span><h2>Доступные ивенты</h2></div><p>Один ивент идёт 1 час, затем 10 минут перерыв.</p></div>
+<section id="screen-events" class="events-section app-screen" hidden aria-labelledby="events-heading">
+  <div class="screen-heading"><span class="eyebrow">БОНУСЫ ЗА ИГРУ</span><h1 id="events-heading">Ивенты</h1><p>Час игры · 10 минут на перерыв</p></div>
   <div class="event-previews">'''+''.join(preview_html)+'''</div>
   <div id="event-card" class="event-card accent-0">
     <div class="event-aurora aurora-a"></div><div class="event-aurora aurora-b"></div>
@@ -158,7 +154,7 @@ def public_page(path,cfg,support):
     <div class="arena-label"><span id="arena-title">МИНИ-ИГРА</span><small id="arena-hint">Загрузка игрового режима…</small></div>
     <div id="event-arena" class="event-arena">
       <span class="arena-grid"></span>
-      <div id="snow-layer" class="snow-layer" aria-hidden="true"></div>
+      <div id="snow-layer" class="snow-layer"></div>
       <div id="reaction-signal" class="reaction-signal" hidden><i></i><span>ЖДИ</span></div>
       <button id="event-tap" class="tap-button" type="button" disabled><span class="tap-spark">✦</span><span id="tap-label">Загрузка…</span></button>
     </div>
@@ -170,7 +166,7 @@ def public_page(path,cfg,support):
     <p id="event-note" class="event-note">Открой Mini App из Telegram, чтобы участвовать.</p>
   </div>
 </section>
-<section class="quick-section">
+<section id="screen-account" class="app-screen" hidden aria-labelledby="account-heading"><div class="screen-heading"><span class="eyebrow">ВСЁ ПОД РУКОЙ</span><h1 id="account-heading">Подключение</h1><p>Твои подписки и помощь с настройкой.</p></div><div class="quick-section">
   <div class="quick-card">
     <div class="quick-icon">↗</div><div><span>Уже подключён?</span><strong>Открой свои подписки</strong></div>
     <a href="https://t.me/'''+bot+'''?start=app_account">Открыть</a>
@@ -179,115 +175,23 @@ def public_page(path,cfg,support):
     <div class="quick-icon">TG</div><div><span>Telegram</span><strong>Бесплатный MTProto</strong></div>
     <a href="https://t.me/'''+bot+'''?start=app_free">Подключить</a>
   </div>
-</section>
-<footer><span>ReVPN — подключайся проще</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика конфиденциальности</a></div></footer>'''
+</div>
+<footer><span>ReVPN</span><div><a href="'''+support_url+'''">Поддержка</a><a href="/privacy">Политика конфиденциальности</a></div></footer></section>
+<nav class="bottom-nav" aria-label="Разделы приложения">
+<button type="button" data-screen="plans" aria-current="page"><span aria-hidden="true">◇</span>Тарифы</button>
+<button type="button" data-screen="events"><span aria-hidden="true">✧</span>Ивенты</button>
+<button type="button" data-screen="account"><span aria-hidden="true">◎</span>Подключение</button>
+</nav>'''
 
     css=r"""
-:root{--bg:#05070b;--bg2:#08111d;--card:#0d1725;--card2:#111f32;--line:rgba(255,255,255,.075);--text:#f6f9ff;--muted:#8899b2;--ice:#94d8ff;--ice2:#5ab6ff;--green:#57e89d;--danger:#ff6574}
-*{box-sizing:border-box}
-html{background:var(--bg);scroll-behavior:smooth;color-scheme:dark}
-body{margin:0;min-height:100vh;background:radial-gradient(720px 360px at 20% -160px,rgba(70,169,255,.19),transparent 68%),radial-gradient(520px 320px at 108% 18%,rgba(89,103,255,.09),transparent 74%),linear-gradient(180deg,#05080e 0%,#07101a 46%,#05070b 100%);color:var(--text);font:16px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow-x:hidden}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(255,255,255,.012) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.012) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(to bottom,black,transparent 75%);z-index:-1}
-a{color:inherit}
-main{width:min(100%,820px);margin:auto;padding:0 18px 54px}
-.app-header{width:min(100%,820px);margin:auto;padding:14px 18px 10px;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.brand{display:flex;align-items:center;gap:11px;text-decoration:none}
-.brandmark{width:39px;height:39px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(145deg,#b9e7ff,#5daff0);color:#06101b;font-weight:950;box-shadow:0 8px 24px rgba(63,158,235,.24),inset 0 1px 0 rgba(255,255,255,.55)}
-.brand>span:last-child{display:flex;flex-direction:column;line-height:1.05}
-.brand strong{font-size:18px;letter-spacing:-.02em}
-.brand small{margin-top:4px;font-size:9px;letter-spacing:.16em;color:var(--muted)}
-.header-link{font-size:13px;font-weight:760;color:#c8dcf3;text-decoration:none;padding:10px 13px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.025)}
-.hero{position:relative;padding:18px 0 14px;margin-top:2px}
+:root{color-scheme:dark;--bg:#080b10;--text:#f4f7fc;--muted:#9aa5b7;--line:#252d38;--accent:#8bcfff}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:radial-gradient(ellipse at 50% 0,#102031 0,transparent 430px),var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}button,a{-webkit-tap-highlight-color:transparent}button{font:inherit;cursor:pointer}a{color:inherit;text-decoration:none}button{color:var(--text)}[hidden]{display:none!important}main{max-width:520px;margin:auto;padding:0 18px calc(100px + env(safe-area-inset-bottom,0px))}h1,h2,h3,strong{color:var(--text)}
+.app-header{height:64px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #ffffff0d}.brand{display:flex;gap:9px;align-items:center}.brand strong{font-size:25px;letter-spacing:-1px;font-style:italic}.brand strong span{color:#8bcfff}.brandmark{display:grid;place-items:center;width:31px;height:35px;background:linear-gradient(145deg,#ceefff,#64b8f4);clip-path:polygon(50% 0,95% 24%,95% 76%,50% 100%,5% 76%,5% 24%);color:#102235;font-weight:900}.header-link{background:none;border:0;color:#a8b3c3;padding:12px 0 12px 12px;font-size:13px}.header-link span{margin-left:5px}.screen-heading{text-align:center;margin:28px 0 22px}.eyebrow{font-size:9px;letter-spacing:.19em;font-weight:700;color:#88b5d7}.screen-heading h1{font-size:29px;letter-spacing:-1px;line-height:1.2;margin:7px 0 8px}.screen-heading p{font-size:13px;color:var(--muted);margin:0}.hero-note{display:flex;gap:12px;align-items:center;padding:14px;border:1px solid #35526a;border-radius:16px;background:linear-gradient(110deg,#122334,#101820);margin-bottom:20px}.hero-note-icon{color:#9cdbff;font-size:28px}.hero-note strong{font-size:13px}.hero-note p{color:#b0bac9;font-size:12px;margin:3px 0 0;line-height:1.5}
+#screen-plans .screen-heading{margin:24px 0 18px}#screen-plans .screen-heading .eyebrow,#screen-plans .screen-heading p{display:none}.plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.plan-card{display:flex;flex-direction:column;align-items:stretch;text-align:left;min-width:0;border:1px solid #2b3039;background:linear-gradient(135deg,#191e27,#10141b);border-radius:17px;padding:14px;transition:border-color .18s,background .18s}.plan-card.selected{border-color:#8bcfff;background:linear-gradient(135deg,#182c40,#101d2b);box-shadow:0 0 0 1px #8bcfff22}.plan-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.plan-icon{width:25px;height:25px}.plan-icon svg{width:25px;height:25px;fill:none;stroke:#9dd8ff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.selection-dot{width:16px;height:16px;border:1px solid #525b68;border-radius:50%}.selected .selection-dot{border:4px solid #91d4ff;background:#16283a}.plan-name{font-size:13px;font-weight:650;min-height:32px;line-height:1.35}.plan-price{display:flex;gap:5px;align-items:baseline;flex-wrap:wrap;margin-top:5px}.plan-price strong{font-size:26px;letter-spacing:-.8px;line-height:1.2}.plan-price>span{font-size:10px;color:#adb7c7;white-space:nowrap}.plan-description{margin-top:9px;border-top:1px solid #ffffff0d;padding-top:8px;font-size:11px;color:#aeb8c7;line-height:1.4}.primary-action{display:flex;align-items:center;justify-content:center;gap:16px;background:linear-gradient(100deg,#b1e3ff,#70bef6);color:#092033;border:0;border-radius:14px;min-height:52px;font-weight:750;font-size:16px;margin-top:18px;box-shadow:0 7px 22px #63b9ff16}.primary-action span{font-size:23px;line-height:1}.selection-note{font-size:11px;text-align:center;color:var(--muted);margin:9px 0 18px}.bonus-teaser{width:100%;display:flex;text-align:left;gap:12px;align-items:center;border:1px solid #254937;border-radius:15px;background:linear-gradient(110deg,#112a20,#111b19);padding:14px;color:#b1f0ce}.gift-icon{font-size:32px;line-height:1}.bonus-teaser strong{color:#c4f6da;font-size:13px}.bonus-teaser small{display:block;font-size:11px;color:#94b9a6;margin-top:2px}.bonus-teaser>span:last-child{margin-left:auto;font-size:20px}
+.bottom-nav{position:fixed;z-index:20;bottom:0;left:50%;transform:translateX(-50%);width:min(100%,520px);display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #29313c;background:#0d121bf5;backdrop-filter:blur(20px);padding:8px 12px calc(8px + env(safe-area-inset-bottom,0px))}.bottom-nav button{border:0;background:transparent;color:#9ca8bb;font-size:11px;min-height:48px;border-radius:12px;display:flex;flex-direction:column;align-items:center;gap:2px}.bottom-nav button span{font-size:24px;line-height:25px}.bottom-nav [aria-current]{color:#a2dcff;background:#8bcfff0d}
+.event-previews{display:flex;gap:8px;overflow:auto;scrollbar-width:none;margin-bottom:16px}.event-preview{display:flex;align-items:center;gap:8px;flex:0 0 190px;min-width:0;border:1px solid var(--line);border-radius:12px;padding:10px;background:#111720}.event-preview.live{border-color:#496a84}.preview-icon{display:flex;color:#a8ddff}.preview-svg{width:24px;height:24px}.preview-copy{min-width:0}.preview-copy span{display:block;font-size:8px;color:#a0c9e8;font-weight:700}.preview-copy strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;margin-top:3px}.event-card{--accent:#8bcfff;border:1px solid #303e50;background:linear-gradient(145deg,#142233,#0d141f);border-radius:20px;padding:16px;position:relative;overflow:hidden}.event-card.accent-1{--accent:#7dd8ff}.event-card.accent-2{--accent:#acb6ff}.event-card.accent-3{--accent:#79e1c6}.event-card.accent-4{--accent:#d4a8ff}.event-card.accent-5{--accent:#91b8ff}.event-aurora,.orb-ring{display:none}.event-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.live-pill{display:flex;align-items:center;gap:6px;border-radius:7px;background:#8bcfff0b;padding:6px;color:#b2dfff;font-size:9px;font-weight:700}.live-pill i{width:5px;height:5px;background:#8bd5ff;border-radius:50%}.live-pill.paused{color:#a7b3c3}.event-time{display:flex;align-items:center;gap:5px}.event-time span{font-size:9px;color:var(--muted)}.event-time strong{font-size:17px;font-variant-numeric:tabular-nums}.event-showcase{display:flex;align-items:center;gap:14px;margin:19px 0}.event-orb{width:58px;height:58px;flex:0 0 58px;padding:3px;background:conic-gradient(var(--accent) var(--progress),#ffffff12 0);border-radius:18px}.orb-inner{height:100%;display:grid;place-items:center;background:#162436;border-radius:15px}.event-art,.event-art svg{height:33px;width:33px;color:var(--accent)}.event-number{font-size:9px;letter-spacing:.09em;color:var(--accent)}.event-copy{min-width:0}.event-copy h3{font-size:18px;line-height:1.2;margin:5px 0 6px;letter-spacing:-.4px}.event-copy p{font-size:11px;color:#acb8c9;line-height:1.45;margin:0}.event-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-bottom:16px}.event-stats>div{border:1px solid #ffffff09;border-radius:10px;padding:9px 6px;background:#ffffff03;min-width:0}.event-stats span{display:block;font-size:8px;color:#a5b1c3}.event-stats strong{font-size:12px;display:block;margin-top:3px;overflow-wrap:anywhere}.event-stats>div:nth-child(2) strong{color:#91eac0}.arena-label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}.arena-label>span{font-size:9px;letter-spacing:.06em;color:#b6c3d5;font-weight:650}.arena-label small{font-size:9px;color:#a0aec1;max-width:65%;text-align:right}.event-arena{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,65px);gap:8px;padding:10px;border:1px solid #ffffff0c;border-radius:15px;overflow:hidden;background:#09121d}.arena-grid{position:absolute;inset:0;background-image:linear-gradient(#ffffff03 1px,transparent 1px),linear-gradient(90deg,#ffffff03 1px,transparent 1px);background-size:33.33% 33.33%;pointer-events:none}.tap-button{position:relative;z-index:3;border:0;border-radius:14px;background:linear-gradient(135deg,#badeff,var(--accent));color:#0b2037;font-size:10px;font-weight:750;padding:5px;min-width:0;overflow-wrap:anywhere;touch-action:manipulation}.tap-spark{display:block;font-size:22px}.tap-button:active{transform:scale(.94)}.tap-button:disabled{opacity:.5}.event-actions{display:grid;gap:8px;margin-top:12px}.claim-button,.connect-button{min-height:46px;border:0;border-radius:12px;display:flex;align-items:center;justify-content:center;padding:10px;text-align:center;font:700 13px system-ui}.claim-button{background:#9ed9ff;color:#0a2539}.claim-button:disabled{background:#253245;color:#a0b0c5;cursor:default}.connect-button{background:#9ae6c1;color:#112d20}.event-note{font-size:11px;color:#a5b2c3;line-height:1.5;text-align:center;margin:12px 0 0}.challenge{padding:12px;border:1px solid #42617c;border-radius:12px;margin-top:12px}.challenge p{font-size:12px;color:#c0d1e4;margin:0 0 10px}.challenge-row{display:flex;gap:8px}.challenge button{flex:1;border:1px solid #465871;background:#263448;border-radius:9px;min-height:44px;color:#fff;font-size:20px}.reward-pop{position:absolute;z-index:7;pointer-events:none;color:#c4edff;font-weight:800;font-size:17px;animation:rewardPop .75s ease-out forwards}.quick-section{display:grid;gap:12px}.quick-card{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:16px;background:#121923}.quick-icon{grid-row:span 2;width:36px;height:36px;background:#203348;color:#a8dbff;border-radius:11px;display:grid;place-items:center;font-size:14px}.quick-card span{display:block;font-size:11px;color:var(--muted)}.quick-card strong{font-size:14px}.quick-card a{color:#9dd8ff;font-size:13px;padding-top:6px;grid-column:2;min-height:32px}footer{margin-top:26px;text-align:center;color:#9ba9bc;font-size:12px}footer>span{display:none}footer div{display:grid;gap:16px}footer a{padding:5px}.privacy-card{margin-top:25px}.privacy-card h1{font-size:28px;overflow-wrap:anywhere;line-height:1.25}.privacy-card h2{font-size:19px;margin-top:28px}.privacy-card p{color:#b2becf;font-size:14px}.brandbar{display:flex;gap:10px;align-items:center;margin-top:25px}.button{display:block;background:#9bd8ff;color:#102b3c;padding:12px;border-radius:10px;text-align:center}.plain{display:block;padding:15px 0;color:#9bd8ff}.app-loader{position:fixed;inset:0;z-index:100;background:#080b10;display:grid;place-items:center;transition:opacity .25s,visibility .25s}.app-loader.hidden{opacity:0;visibility:hidden;pointer-events:none}.loader-stage{width:210px;text-align:center}.loader-logo{display:none}.loader-brand{font-size:44px;font-style:italic;letter-spacing:-2px;font-weight:800;color:#abdeff}.loader-caption{color:#a1b2c5;font-size:12px;margin:8px 0 28px}.loader-track{height:4px;background:#253344;border-radius:5px;overflow:hidden}.loader-track span{display:block;height:100%;width:0;background:#8bcfff;transition:width .25s}.loader-track i{display:none}
+@keyframes rewardPop{to{transform:translateY(-55px);opacity:0}}@media(max-width:350px){main{padding-left:12px;padding-right:12px}.plan-card{padding:12px}.plan-price strong{font-size:23px}.plan-name{font-size:12px}.event-card{padding:12px}.event-time span{display:none}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition:none!important;scroll-behavior:auto!important}.snowflake{animation:snowFall var(--fall) linear forwards!important}}a:focus-visible,button:focus-visible{outline:3px solid #c4eaff;outline-offset:3px}
 
-.hero-title{display:flex;align-items:end;justify-content:space-between;gap:16px;margin-bottom:11px}
-.hero-title .eyebrow{padding-bottom:5px}
-.hero-note{display:grid;grid-template-columns:auto 1fr;gap:11px;align-items:center;padding:13px 14px;border-radius:18px;background:linear-gradient(145deg,rgba(13,28,44,.94),rgba(7,17,29,.94));border:1px solid rgba(102,184,239,.19);box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 14px 34px rgba(0,0,0,.16)}
-.hero-note-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(121,210,255,.2),rgba(67,123,193,.09));border:1px solid rgba(119,203,255,.17);color:#90d9ff;font-size:17px;animation:iconFloat 4s ease-in-out infinite}
-.hero-note strong{display:block;color:#eef8ff;font-size:13px;line-height:1.2}
-.hero-note p{margin:4px 0 0;color:#8fa2bb;font-size:10.5px;line-height:1.4}
-.eyebrow{font-size:10px;letter-spacing:.2em;font-weight:850;color:#76c6ff}
-.hero h1{font-size:clamp(28px,6vw,38px);line-height:1;letter-spacing:-.045em;margin:5px 0 0;max-width:650px;color:#f7fbff}
-.hero h1 span{color:#7bcaff}
-.hero>p{max-width:590px;margin:0;color:#9aabc1;font-size:13px}
-.hero-pills{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}
-.hero-pills span{font-size:10px;color:#b7c8db;background:rgba(255,255,255,.032);border:1px solid rgba(145,199,240,.1);padding:7px 9px;border-radius:999px}
-.hero-pills i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:7px;box-shadow:0 0 12px rgba(87,232,157,.7)}
-section{margin-top:18px}
-.section-head{display:flex;justify-content:space-between;gap:18px;align-items:end;margin:0 2px 14px}
-.section-head h2{font-size:27px;line-height:1.08;letter-spacing:-.035em;margin:6px 0 0}
-.section-head>p{max-width:285px;text-align:right;color:var(--muted);font-size:13px;margin:0}
-.plans-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.plan-card{position:relative;overflow:hidden;background:linear-gradient(150deg,rgba(18,28,43,.96),rgba(8,13,21,.97));border:1px solid var(--line);border-radius:25px;padding:18px;min-height:240px;box-shadow:0 15px 40px rgba(0,0,0,.18)}
-.plan-card:before{content:"";position:absolute;width:150px;height:150px;border-radius:50%;right:-75px;top:-80px;background:radial-gradient(circle,rgba(89,178,255,.18),transparent 68%);pointer-events:none}
-.plan-card.featured{border-color:rgba(104,197,255,.36);box-shadow:0 18px 50px rgba(25,116,190,.14)}
-.plan-top{display:flex;justify-content:space-between;gap:10px;align-items:start}
-.plan-icon{width:48px;height:48px;border-radius:16px;display:grid;place-items:center;background:linear-gradient(145deg,rgba(145,218,255,.18),rgba(62,139,215,.08));border:1px solid rgba(145,218,255,.17);animation:iconFloat 4.5s ease-in-out infinite}
-.plan-icon svg{width:28px;height:28px;fill:none;stroke:#9bdbff;stroke-width:3.2;stroke-linecap:round;stroke-linejoin:round}
-.plan-tag{font-size:9px;letter-spacing:.1em;font-weight:850;text-transform:uppercase;color:#8ed2ff;border:1px solid rgba(118,198,255,.16);background:rgba(75,154,220,.08);padding:6px 8px;border-radius:999px}
-.plan-card h3{font-size:18px;margin:18px 0 8px;line-height:1.15}
-.plan-price{display:flex;align-items:baseline;gap:7px}
-.plan-price strong{font-size:27px;letter-spacing:-.04em}
-.plan-price span{font-size:11px;color:var(--muted)}
-.plan-card p{font-size:12px;color:var(--muted);min-height:38px;margin:9px 0 16px}
-.plan-action{display:block;text-decoration:none;text-align:center;padding:11px;border-radius:14px;background:rgba(255,255,255,.065);border:1px solid rgba(255,255,255,.045);font-size:13px;font-weight:780;transition:.2s transform,.2s background}
-.featured .plan-action{background:linear-gradient(135deg,#9adaff,#5cb8f8);color:#07111a}
-.plan-action:active{transform:scale(.98)}
-.event-previews{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;overflow:auto;padding-bottom:3px;scrollbar-width:none}
-.event-previews::-webkit-scrollbar{display:none}
-.event-preview{min-width:0;padding:12px;border-radius:18px;background:rgba(255,255,255,.028);border:1px solid var(--line);display:flex;gap:10px;align-items:center}
-.event-preview.live{border-color:rgba(98,202,255,.34);background:linear-gradient(135deg,rgba(80,173,246,.09),rgba(255,255,255,.025))}
-.preview-icon{width:40px;height:40px;flex:0 0 40px;border-radius:14px;display:grid;place-items:center;font-size:19px;background:linear-gradient(145deg,rgba(122,202,255,.16),rgba(38,90,150,.11));animation:iconFloat 4s ease-in-out infinite}
-.preview-copy{min-width:0;display:flex;flex-direction:column}
-.preview-copy span{font-size:8px;letter-spacing:.12em;color:#74c7ff;font-weight:900}
-.preview-copy strong{font-size:11px;line-height:1.2;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.event-card{--accent:#67bfff;position:relative;overflow:hidden;margin-top:12px;background:linear-gradient(160deg,#101e31 0%,#0b1626 58%,#08111e 100%);border:1px solid rgba(123,199,255,.14);border-radius:30px;padding:20px;box-shadow:0 25px 70px rgba(0,0,0,.25)}
-.event-card.accent-1{--accent:#7dd8ff}.event-card.accent-2{--accent:#9aa6ff}.event-card.accent-3{--accent:#64e0c6}.event-card.accent-4{--accent:#c68cff}.event-card.accent-5{--accent:#74a9ff}
-.event-aurora{position:absolute;border-radius:50%;filter:blur(48px);opacity:.17;pointer-events:none}
-.aurora-a{width:240px;height:240px;background:var(--accent);right:-110px;top:-90px;animation:auroraMove 8s ease-in-out infinite alternate}
-.aurora-b{width:170px;height:170px;background:#315bff;left:-100px;bottom:-100px;animation:auroraMove 10s ease-in-out infinite alternate-reverse}
-.event-card-top,.event-showcase,.event-stats,.arena-label{position:relative;z-index:2}
-.event-card-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.live-pill{display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.13em;font-weight:900;color:#8ed7ff;background:rgba(83,178,247,.08);border:1px solid rgba(118,207,255,.16);padding:8px 10px;border-radius:999px}
-.live-pill i{width:7px;height:7px;border-radius:50%;background:#6ad3ff;box-shadow:0 0 0 0 rgba(106,211,255,.55);animation:livePulse 1.8s infinite}
-.live-pill.paused{color:#aab5c4;background:rgba(255,255,255,.04)}.live-pill.paused i{background:#8593a6;animation:none}
-.event-time{display:flex;align-items:end;gap:8px}
-.event-time span{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.event-time strong{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
-.event-showcase{display:flex;align-items:center;gap:20px;margin:22px 0 18px}
-.event-orb{--progress:0deg;position:relative;width:116px;height:116px;flex:0 0 116px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--accent) var(--progress),rgba(255,255,255,.06) 0);box-shadow:0 0 55px color-mix(in srgb,var(--accent) 20%,transparent);animation:orbFloat 4.2s ease-in-out infinite}
-.event-orb:before{content:"";position:absolute;inset:5px;border-radius:50%;background:#0c1828}
-.orb-inner{position:relative;z-index:3;width:78px;height:78px;border-radius:25px;display:grid;place-items:center;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 70%,#fff),color-mix(in srgb,var(--accent) 60%,#183452));color:#07111c;font-size:34px;box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 10px 35px color-mix(in srgb,var(--accent) 22%,transparent)}
-.orb-ring{position:absolute;border:1px solid color-mix(in srgb,var(--accent) 24%,transparent);border-radius:50%;z-index:2}.ring-one{inset:-9px;animation:ringSpin 16s linear infinite}.ring-two{inset:-18px;border-style:dashed;animation:ringSpin 24s linear infinite reverse}
-.event-copy{min-width:0}.event-number{font-size:9px;letter-spacing:.16em;color:var(--accent);font-weight:900}.event-copy h3{font-size:clamp(24px,5vw,34px);line-height:1.02;letter-spacing:-.045em;margin:7px 0 10px}.event-copy p{font-size:13px;color:#91a3bb;margin:0}
-.event-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:4px 0 18px}
-.event-stats>div{padding:12px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.04)}
-.event-stats span{display:block;font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}.event-stats strong{display:block;font-size:17px;margin-top:3px}
-.arena-label{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:8px}.arena-label span{font-size:9px;letter-spacing:.15em;font-weight:900;color:#9db3cb}.arena-label small{font-size:9px;color:#63758c}
-.event-arena{position:relative;z-index:2;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,68px);gap:7px;padding:10px;border-radius:21px;background:rgba(2,8,15,.34);border:1px solid rgba(255,255,255,.045);overflow:hidden}
-.arena-grid{position:absolute;inset:0;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:33.333% 33.333%;pointer-events:none}
-.tap-button{position:relative;z-index:3;grid-column:2;grid-row:2;border:0;border-radius:18px;padding:8px;background:linear-gradient(145deg,color-mix(in srgb,var(--accent) 82%,#fff),color-mix(in srgb,var(--accent) 72%,#4778b2));color:#07111b;font:inherit;font-size:12px;font-weight:900;box-shadow:0 12px 30px color-mix(in srgb,var(--accent) 22%,transparent),inset 0 1px 0 rgba(255,255,255,.46);cursor:pointer;transition:.14s transform,.18s filter;overflow:hidden}
-.tap-button:before{content:"";position:absolute;inset:-80% auto -80% -55%;width:38%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.52),transparent);transform:rotate(20deg);animation:buttonShine 2.6s ease-in-out infinite}
-.tap-button:active{transform:scale(.94)}.tap-button:disabled{opacity:.46;filter:grayscale(.25);cursor:default}
-.tap-spark{display:block;font-size:17px;line-height:1}.tap-button span:last-child{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.reward-pop{position:absolute;z-index:7;pointer-events:none;font-size:13px;font-weight:950;color:#a8e3ff;text-shadow:0 2px 12px #000;animation:rewardPop .75s ease-out forwards}
-.challenge{position:relative;z-index:2;padding:14px;border-radius:17px;margin-top:10px;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.055)}.challenge p{font-size:12px;margin:0 0 10px;color:#b8c8da}.challenge-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.challenge button{border:0;border-radius:13px;background:rgba(126,207,255,.12);color:#e9f7ff;font:inherit;font-size:20px;padding:10px}
-.event-actions{position:relative;z-index:2;display:grid;grid-template-columns:1fr;gap:9px;margin-top:12px}
-.claim-button,.connect-button{min-height:52px;border:0;border-radius:17px;font:inherit;font-size:13px;font-weight:850;display:flex;align-items:center;justify-content:center;text-decoration:none;cursor:pointer}
-.claim-button{background:rgba(255,255,255,.07);color:#d5e3f2}.claim-button:not(:disabled){background:linear-gradient(135deg,#9bdcff,#65bcf8);color:#07111a;box-shadow:0 12px 30px rgba(72,165,235,.18)}.claim-button:disabled{opacity:.44}
-.connect-button{background:linear-gradient(135deg,#76efba,#43d491);color:#06130d}.connect-button span{margin-left:8px;font-size:18px}
-.event-note{position:relative;z-index:2;color:#6f8299;font-size:10px;text-align:center;margin:10px 0 0}
-.quick-section{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:14px;border-radius:19px;border:1px solid var(--line);background:rgba(255,255,255,.026)}.quick-icon{width:38px;height:38px;border-radius:13px;display:grid;place-items:center;background:rgba(116,196,255,.1);color:#8dd5ff;font-weight:900;font-size:12px}.quick-card div:nth-child(2){display:flex;flex-direction:column;min-width:0}.quick-card span{font-size:9px;color:var(--muted)}.quick-card strong{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.quick-card a{font-size:10px;text-decoration:none;color:#8fd5ff;font-weight:800}
-footer{display:flex;justify-content:space-between;gap:15px;align-items:center;padding:26px 3px 8px;color:#617289;font-size:10px}footer div{display:flex;gap:12px}footer a{text-decoration:none;color:#8799ae}
-.privacy-card{margin-top:14px;background:rgba(255,255,255,.032);border:1px solid var(--line);border-radius:24px;padding:22px}.privacy-card h1{font-size:36px;line-height:1.05;letter-spacing:-.04em}.privacy-card h2{font-size:18px;margin-top:24px}.privacy-card p{color:#a4b2c4}.button{display:block;background:#94d8ff;color:#07111a;border-radius:14px;padding:13px;text-align:center;text-decoration:none;font-weight:800;margin-top:10px}.plain{display:block;padding:12px 0;color:#8fd5ff}
-.app-loader{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:radial-gradient(400px 260px at 50% 48%,rgba(64,154,229,.16),transparent 70%),#030508;transition:opacity .42s ease,visibility .42s ease}
-.app-loader.hidden{opacity:0;visibility:hidden;pointer-events:none}
-.loader-stage{width:min(78vw,340px);text-align:center}.loader-logo{position:relative;width:116px;height:116px;margin:0 auto 18px;display:grid;place-items:center}.loader-core{position:relative;z-index:4;width:60px;height:60px;border-radius:20px;display:grid;place-items:center;background:linear-gradient(145deg,#b5e5ff,#62b8f5);color:#07111a;font-size:29px;font-weight:950;box-shadow:0 18px 55px rgba(76,169,239,.25);animation:loaderCore 2.4s ease-in-out infinite}.loader-cube{position:absolute;width:28px;height:28px;border-radius:9px;background:linear-gradient(145deg,rgba(152,221,255,.9),rgba(64,143,214,.5));border:1px solid rgba(255,255,255,.25);box-shadow:0 8px 28px rgba(75,164,232,.2)}.cube-a{left:2px;top:18px;animation:cubeA 3.2s ease-in-out infinite}.cube-b{right:2px;top:14px;animation:cubeB 3s ease-in-out infinite}.cube-c{bottom:0;left:44px;animation:cubeC 3.4s ease-in-out infinite}.loader-brand{font-size:31px;font-weight:950;letter-spacing:-.05em}.loader-caption{font-size:11px;color:#71839a;margin:5px 0 19px}.loader-track{position:relative;height:7px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden}.loader-track span{display:block;width:12%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#55b5fb,#a6e1ff);box-shadow:0 0 18px rgba(84,182,251,.45);transition:width .3s ease}.loader-track i{position:absolute;inset:0;width:35%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.32),transparent);animation:loadSweep 1.2s linear infinite}
-
-.preview-svg{width:24px;height:24px;color:#a8ddff}.event-art{width:48px;height:48px;color:#06111d;display:grid;place-items:center}.event-art svg{width:46px;height:46px}
-.event-stats{grid-template-columns:repeat(4,1fr)}
-.event-stats>div:nth-child(2){background:linear-gradient(145deg,rgba(78,231,164,.08),rgba(255,255,255,.025));border-color:rgba(78,231,164,.11)}
-.event-stats>div:nth-child(2) strong{color:#72efb1}
-.event-arena{min-height:224px;grid-template-rows:repeat(3,68px)}
 .snow-layer{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
 .snowflake{--fall:1.25s;position:absolute;top:-58px;width:52px;height:52px;border:0;padding:0;background:transparent;color:#d9f6ff;filter:drop-shadow(0 6px 12px rgba(66,175,255,.38));pointer-events:auto;cursor:pointer;animation:snowFall var(--fall) linear forwards,snowSpin calc(var(--fall)*1.25) linear forwards}
 .snowflake svg{width:100%;height:100%}.snowflake:after{content:"";position:absolute;inset:10px;border-radius:50%;background:rgba(176,231,255,.18);filter:blur(9px);z-index:-1}
@@ -306,70 +210,13 @@ footer{display:flex;justify-content:space-between;gap:15px;align-items:center;pa
 @media(max-width:620px){.event-stats{grid-template-columns:repeat(2,1fr)}.event-arena{min-height:218px}}
 
 
-/* Branded dark UI: never inherit Telegram's light-theme black text. */
-.brand strong,.hero h1,.section-head h2,.plan-card h3,.plan-price strong,.preview-copy strong,
-.event-copy h3,.event-time strong,.event-stats strong,.quick-card strong,.loader-brand,
-.privacy-card h1,.privacy-card h2{color:#f5f9ff}
-.plan-card,.event-card,.event-preview,.quick-card,.privacy-card{color:#f5f9ff}
-.plan-action:not(.featured .plan-action){color:#dcecff}
-button{font-family:inherit}
 
-/* Compact mobile pricing: 2x2 instead of four giant full-width cards. */
-.plan-card{border-radius:21px;padding:15px;min-height:205px;background:linear-gradient(155deg,rgba(14,24,37,.985),rgba(7,13,22,.985));border-color:rgba(145,190,225,.11);box-shadow:0 16px 34px rgba(0,0,0,.22)}
-.plan-card.featured{border-color:rgba(100,198,255,.42);box-shadow:0 0 0 1px rgba(89,181,245,.06),0 18px 42px rgba(29,120,184,.14)}
-.plan-icon{width:42px;height:42px;border-radius:14px}
-.plan-icon svg{width:25px;height:25px}
-.plan-tag{font-size:8px;padding:5px 7px}
-.plan-card h3{font-size:15px;margin:13px 0 5px}
-.plan-price strong{font-size:24px}
-.plan-price span{font-size:10px}
-.plan-card p{font-size:10.5px;line-height:1.35;min-height:29px;margin:7px 0 12px}
-.plan-action{padding:10px 8px;border-radius:13px;font-size:11px}
-.section-head h2{font-size:24px}
-section{margin-top:16px}
-
-.event-card{margin-top:10px;border-radius:24px;padding:16px;background:linear-gradient(158deg,#0e1c2e 0%,#091523 60%,#07101a 100%);border-color:rgba(117,194,247,.17);box-shadow:0 22px 56px rgba(0,0,0,.25)}
-.event-showcase{gap:14px;margin:16px 0 14px}
-.event-orb{width:88px;height:88px;flex-basis:88px}
-.event-orb:before{inset:4px}
-.orb-inner{width:60px;height:60px;border-radius:20px}
-.event-art,.event-art svg{width:38px;height:38px}
-.ring-one{inset:-7px}.ring-two{inset:-13px}
-.event-copy h3{font-size:clamp(20px,4.5vw,27px);margin:5px 0 7px}
-.event-copy p{font-size:11px;line-height:1.42}
-.event-stats{gap:7px;margin:3px 0 13px}
-.event-stats>div{padding:10px;border-radius:14px;background:rgba(255,255,255,.03);border-color:rgba(255,255,255,.045)}
-.event-stats span{font-size:8px}.event-stats strong{font-size:14px}
-.event-arena{min-height:198px;border-radius:18px}
-.arena-label{margin-bottom:7px}.arena-label small{font-size:8px}
-.event-note{font-size:9px}
-.event-preview{padding:9px;border-radius:14px;gap:8px}
-.preview-icon{width:35px;height:35px;flex-basis:35px;border-radius:12px}
-.preview-svg{width:21px;height:21px}
-.preview-copy strong{font-size:10px}
-.preview-copy span{font-size:7px}
-.quick-card{border-radius:17px;background:rgba(255,255,255,.022);border-color:rgba(255,255,255,.065)}
-
-@keyframes iconFloat{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-4px) rotate(1deg)}}
-@keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(106,211,255,.55)}70%{box-shadow:0 0 0 8px rgba(106,211,255,0)}100%{box-shadow:0 0 0 0 rgba(106,211,255,0)}}
-@keyframes orbFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
-@keyframes ringSpin{to{transform:rotate(360deg)}}
-@keyframes auroraMove{to{transform:translate(28px,24px) scale(1.12)}}
-@keyframes buttonShine{0%,58%{left:-55%}100%{left:135%}}
-@keyframes rewardPop{0%{opacity:0;transform:translate(-50%,8px) scale(.7)}20%{opacity:1}100%{opacity:0;transform:translate(-50%,-38px) scale(1.08)}}
-@keyframes loaderCore{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-5px) scale(1.035)}}
-@keyframes cubeA{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(-5px,12px) rotate(-14deg)}}
-@keyframes cubeB{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(8px,10px) rotate(16deg)}}
-@keyframes cubeC{0%,100%{transform:translate(0,0) rotate(0)}50%{transform:translate(0,8px) rotate(10deg)}}
-@keyframes loadSweep{from{transform:translateX(-130%)}to{transform:translateX(390%)}}
-@media(max-width:620px){main{padding:0 14px 42px}.app-header{padding:12px 14px 8px}.hero{padding:14px 0 12px}.hero h1{font-size:31px}.hero-pills{margin-top:12px}.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.plan-card{padding:13px;min-height:190px}.plan-card h3{font-size:14px}.plan-price strong{font-size:22px}.event-previews{grid-template-columns:repeat(3,160px)}.event-showcase{gap:12px}.event-orb{width:82px;height:82px;flex-basis:82px}.orb-inner{width:56px;height:56px;border-radius:18px}.event-stats{grid-template-columns:repeat(2,1fr)}.event-stats strong{font-size:14px}.quick-section{grid-template-columns:1fr}.section-head{align-items:start}.section-head>p{display:none}}
-@media(max-width:390px){.plans-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.plan-card{padding:12px;min-height:186px}.plan-icon{width:38px;height:38px}.plan-tag{font-size:7px}.plan-card h3{font-size:13px}.plan-price{gap:4px}.plan-price strong{font-size:21px}.plan-price span{font-size:9px}.plan-card p{font-size:9.5px;min-height:27px}.event-copy h3{font-size:20px}.event-showcase{align-items:center}.event-stats{gap:6px}.event-stats>div{padding:9px 8px}.event-stats span{font-size:7px}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
-a:focus-visible,button:focus-visible{outline:3px solid #a8ddff;outline-offset:3px}
 """
     scripts='' if privacy else r"""<script src="https://telegram.org/js/telegram-web-app.js"></script><script>
+document.getElementById('app-loader')?.classList.remove('hidden');
 const app=window.Telegram?.WebApp;
-if(app){app.ready();app.expand();try{app.setHeaderColor('#05070b');app.setBackgroundColor('#05070b');}catch(_){}}
+if(app){app.ready();app.expand();try{app.setHeaderColor('#080b10');app.setBackgroundColor('#080b10');}catch(_){}}
+let currentScreen='plans',loadingEvent=false;
 let evState=null,timerLeft=0,cooldownLeft=0,busy=false,loaderDone=false,snowTimer=null,reactionTimer=null;
 const $=id=>document.getElementById(id);
 const SVG={
@@ -382,7 +229,7 @@ function fmt(sec){sec=Math.max(0,Math.floor(sec||0));const m=Math.floor(sec/60),
 function money(k){return (Number(k||0)/100).toFixed(2).replace(/\.00$/,'')+' ₽';}
 function bootProgress(v){const el=$('loader-fill');if(el)el.style.width=Math.max(4,Math.min(100,v))+'%';}
 function finishLoader(){if(loaderDone)return;loaderDone=true;bootProgress(100);setTimeout(()=>$('app-loader')?.classList.add('hidden'),260);}
-async function api(path,extra={}){const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:app?.initData||'',...extra})});let d={};try{d=await r.json();}catch(_){d={message:'Ошибка ответа сервера'};}if(!r.ok){const e=new Error(d.message||'Ошибка');e.data=d;throw e;}return d;}
+async function api(path,extra={}){const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),12000);let r;try{r=await fetch(path,{signal:controller.signal,method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({init_data:app?.initData||'',...extra})});}finally{clearTimeout(timeout);}let d={};try{d=await r.json();}catch(_){d={message:'Ошибка ответа сервера'};}if(!r.ok){const e=new Error(d.message||'Ошибка');e.data=d;throw e;}return d;}
 function accent(v){const card=$('event-card');if(card)card.className=card.className.replace(/\baccent-\d\b/g,'').trim()+' accent-'+(Number(v||0)%6);}
 function placeButton(slot){const b=$('event-tap');slot=Number(slot||0)%9;b.style.gridColumn=String(slot%3+1);b.style.gridRow=String(Math.floor(slot/3)+1);}
 function renderChallenge(c,disabled=false){const box=$('event-challenge');box.innerHTML='';if(!c?.required){box.hidden=true;return;}box.hidden=false;const p=document.createElement('p');p.textContent=c.prompt;box.appendChild(p);const row=document.createElement('div');row.className='challenge-row';c.options.forEach(o=>{const b=document.createElement('button');b.type='button';b.textContent=o.label;b.disabled=disabled;b.onclick=()=>solveChallenge(o.id);row.appendChild(b);});box.appendChild(row);}
@@ -390,20 +237,37 @@ function rewardText(r){if(!r)return'';const bits=[];if(r.seconds)bits.push('+'+r
 function rewardPop(r){const text=rewardText(r);if(!text)return;const arena=$('event-arena');const el=document.createElement('span');el.className='reward-pop '+(r.kopecks&&r.seconds?'mixed':r.kopecks?'ruble':'');el.textContent=text;el.style.left=(35+Math.random()*30)+'%';el.style.top=(38+Math.random()*20)+'%';arena.appendChild(el);setTimeout(()=>el.remove(),800);}
 function snowSvg(variant){return '<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="'+(variant%2?4.2:5)+'" stroke-linecap="round"><path d="M50 7v86M13 28l74 44M13 72l74-44"/><path d="m50 7-9 13m9-13 9 13M50 93l-9-13m9 13 9-13M13 28l16 2m-16-2 7 13M87 72l-16-2m16 2-7-13M13 72l16-2m-16 2 7-13M87 28l-16 2m16-2-7 13"/></g><circle cx="50" cy="50" r="'+(variant%3+5)+'" fill="currentColor"/></svg>';}
 function clearGame(){if(snowTimer){clearTimeout(snowTimer);snowTimer=null;}if(reactionTimer){clearTimeout(reactionTimer);reactionTimer=null;}$('snow-layer').innerHTML='';$('reaction-signal').hidden=true;$('reaction-signal').classList.remove('ready');}
-function spawnSnow(){if(!evState||busy||evState.event.game!=='snow_catch'||!evState.clock.active||evState.user.challenge||evState.user.cooldown_ms>0)return;const layer=$('snow-layer');if(layer.querySelector('.snowflake'))return;const flake=document.createElement('button');flake.type='button';flake.className='snowflake';const seed=parseInt((evState.user.nonce||'0').slice(0,8),16)||1;const x=6+(seed%82);const ms=850+(seed%650);flake.style.left=x+'%';flake.style.setProperty('--fall',ms+'ms');flake.innerHTML=snowSvg(seed%5);flake.onclick=async e=>{e.stopPropagation();flake.remove();await playAction();};layer.appendChild(flake);snowTimer=setTimeout(()=>{flake.remove();snowTimer=null;spawnSnow();},ms+40);}
+function spawnSnow(){if(currentScreen!=='events'||document.hidden||!evState||busy||evState.event.game!=='snow_catch'||!evState.clock.active||evState.user.challenge||evState.user.cooldown_ms>0)return;const layer=$('snow-layer');if(layer.querySelector('.snowflake'))return;const flake=document.createElement('button');flake.type='button';flake.setAttribute('aria-label','Поймать снежинку');flake.className='snowflake';const seed=parseInt((evState.user.nonce||'0').slice(0,8),16)||1;const x=6+(seed%82);const ms=850+(seed%650);flake.style.left=x+'%';flake.style.setProperty('--fall',ms+'ms');flake.innerHTML=snowSvg(seed%5);flake.onclick=async e=>{e.stopPropagation();flake.remove();await playAction();};layer.appendChild(flake);snowTimer=setTimeout(()=>{flake.remove();snowTimer=null;spawnSnow();},ms+40);}
 function setupReaction(){const box=$('reaction-signal');box.hidden=false;box.classList.remove('ready');box.querySelector('span').textContent='ЖДИ';const wait=Math.max(0,Number(evState?.user?.ready_in_ms||0));reactionTimer=setTimeout(()=>{reactionTimer=null;if(!evState||evState.event.game!=='reaction')return;box.classList.add('ready');box.querySelector('span').textContent='ЖМИ';$('event-tap').disabled=false;if(app?.HapticFeedback)app.HapticFeedback.impactOccurred('medium');},wait);}
-function setupGame(){clearGame();const e=evState?.event,u=evState?.user,c=evState?.clock;if(!e)return;const arena=$('event-arena');arena.className='event-arena mode-'+(e.game==='snow_catch'?'snow':e.game==='reaction'?'reaction':e.game==='ice_break'?'ice':'tap');arena.style.setProperty('--cracks',String(Math.min(5,(u.event_taps||0)%6)));$('event-art').innerHTML=SVG[e.game]||SVG.tap_rush;const title={tap_rush:'ТАП-ГОНКА',snow_catch:'ПОЙМАЙ СНЕЖИНКУ',reaction:'РЕАКЦИЯ',ice_break:'РАЗБЕЙ КРИСТАЛЛ'}[e.game];const hint={tap_rush:'Лови движущуюся кнопку',snow_catch:'Снежинки падают быстро — нажимай прямо по ним',reaction:'Не нажимай раньше зелёной вспышки',ice_break:'Каждый точный удар раскалывает лёд'}[e.game];$('arena-title').textContent=title;$('arena-hint').textContent=hint;const tap=$('event-tap');tap.disabled=!c.active||u.cooldown_ms>0||!!u.challenge;$('tap-label').textContent=e.game==='reaction'?'ЖМИ ПО СИГНАЛУ':e.button;placeButton(u.slot);if(e.game==='snow_catch'){tap.disabled=true;spawnSnow();}else if(e.game==='reaction'){tap.disabled=true;setupReaction();}}
+function setupGame(){clearGame();if(currentScreen!=='events'||document.hidden)return;const e=evState?.event,u=evState?.user,c=evState?.clock;if(!e)return;const arena=$('event-arena');arena.className='event-arena mode-'+(e.game==='snow_catch'?'snow':e.game==='reaction'?'reaction':e.game==='ice_break'?'ice':'tap');arena.style.setProperty('--cracks',String(Math.min(5,(u.event_taps||0)%6)));$('event-art').innerHTML=SVG[e.game]||SVG.tap_rush;const title={tap_rush:'ТАП-ГОНКА',snow_catch:'ПОЙМАЙ СНЕЖИНКУ',reaction:'РЕАКЦИЯ',ice_break:'РАЗБЕЙ КРИСТАЛЛ'}[e.game];const hint={tap_rush:'Лови движущуюся кнопку',snow_catch:'Снежинки падают быстро — нажимай прямо по ним',reaction:'Не нажимай раньше зелёной вспышки',ice_break:'Каждый точный удар раскалывает лёд'}[e.game];$('arena-title').textContent=title;$('arena-hint').textContent=hint;const tap=$('event-tap');tap.disabled=!c.active||u.cooldown_ms>0||!!u.challenge;$('tap-label').textContent=e.game==='reaction'?'ЖМИ ПО СИГНАЛУ':e.button;placeButton(u.slot);if(e.game==='snow_catch'){tap.disabled=true;spawnSnow();}else if(e.game==='reaction'){tap.disabled=true;setupReaction();}}
 function render(d){evState=d;const c=d.clock,u=d.user,e=d.event;timerLeft=c.seconds_left||0;cooldownLeft=u.cooldown_ms||0;accent(e.accent);$('event-number').textContent='ИВЕНТ #'+String(c.event_no||'—').padStart(3,'0');$('event-title').textContent=c.active?e.title:'Перерыв между ивентами';$('event-desc').textContent=c.active?e.description:'Новый ивент уже готовится. Начнётся через '+fmt(timerLeft)+'.';$('event-balance').textContent=u.balance_seconds+' сек';$('event-rubles').textContent=money(u.bonus_kopecks);$('event-taps').textContent=u.event_taps;const earned=(u.event_reward_seconds?u.event_reward_seconds+' сек':'')+(u.event_reward_seconds&&u.event_reward_kopecks?' · ':'')+(u.event_reward_kopecks?money(u.event_reward_kopecks):'');$('event-earned').textContent=earned||'0';$('event-timer').textContent=fmt(timerLeft);const progress=c.active?(1-Math.min(3600,timerLeft)/3600):0;$('event-orb')?.style.setProperty('--progress',(progress*360)+'deg');const live=$('event-live');live.classList.toggle('paused',!c.active);live.querySelector('span').textContent=c.active?'LIVE · '+e.reward.label:'ПЕРЕРЫВ';const claim=$('event-claim');claim.disabled=u.balance_seconds<u.min_claim_seconds&&!(u.bonus?.syncing);claim.textContent=u.bonus?.syncing?'Повторить синхронизацию':('Активировать '+u.balance_seconds+' сек');const link=$('event-connect');if(u.bonus?.connect_url){link.href=u.bonus.connect_url;link.hidden=false;}else link.hidden=true;renderChallenge(u.challenge,cooldownLeft>0);$('event-note').textContent=u.cooldown_ms>0?'Защита от автокликера: пауза '+Math.ceil(u.cooldown_ms/1000)+' сек.':(u.bonus?.syncing?'Секунды сохранены, синхронизация VPN ещё выполняется.':'Бонусные ₽ автоматически уменьшают следующую оплату.');setupGame();}
-async function loadEvent(){bootProgress(54);try{const d=await api('/api/events/state');bootProgress(82);render(d);finishLoader();}catch(e){$('event-title').textContent='Ивенты доступны в Telegram';$('event-desc').textContent=e.message||'Открой Mini App из Telegram, чтобы участвовать.';$('event-tap').disabled=true;$('event-note').textContent='Каталог доступен, награды привязываются только к Telegram-аккаунту.';finishLoader();}}
-async function playAction(){if(busy||!evState)return;busy=true;$('event-tap').disabled=true;try{const d=await api('/api/events/play',{event_id:evState.clock.event_id,nonce:evState.user.nonce});if(d.accepted){rewardPop(d.reward);if(app?.HapticFeedback)app.HapticFeedback.impactOccurred('light');if(evState.event.game==='ice_break'){const a=$('event-arena');a.classList.remove('hit');void a.offsetWidth;a.classList.add('hit');}}render(d);}catch(e){$('event-note').textContent=e.message;if(e.data?.challenge){evState.user.challenge=e.data.challenge;renderChallenge(e.data.challenge);}else await loadEvent();}finally{busy=false;if(evState)setupGame();}}
+async function loadEvent(){if(loadingEvent)return;loadingEvent=true;try{const d=await api('/api/events/state');bootProgress(82);render(d);finishLoader();}catch(e){$('event-title').textContent='Ивенты доступны в Telegram';$('event-desc').textContent=e.message||'Открой Mini App из Telegram, чтобы участвовать.';$('event-tap').disabled=true;$('event-note').textContent='Каталог доступен, награды привязываются только к Telegram-аккаунту.';finishLoader();}finally{loadingEvent=false;}}
+async function playAction(){if(currentScreen!=='events'||document.hidden||busy||!evState)return;busy=true;$('event-tap').disabled=true;try{const d=await api('/api/events/play',{event_id:evState.clock.event_id,nonce:evState.user.nonce});if(d.accepted){rewardPop(d.reward);if(app?.HapticFeedback)app.HapticFeedback.impactOccurred('light');if(evState.event.game==='ice_break'){const a=$('event-arena');a.classList.remove('hit');void a.offsetWidth;a.classList.add('hit');}}render(d);}catch(e){$('event-note').textContent=e.message;if(e.data?.challenge){evState.user.challenge=e.data.challenge;renderChallenge(e.data.challenge);}else await loadEvent();}finally{busy=false;if(evState)setupGame();}}
 $('event-tap')?.addEventListener('click',playAction);
 async function solveChallenge(choice){if(!evState||busy)return;busy=true;try{render(await api('/api/events/challenge',{nonce:evState.user.nonce,choice}));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}}
 $('event-claim')?.addEventListener('click',async()=>{if(busy)return;busy=true;$('event-claim').disabled=true;try{render(await api('/api/events/claim'));if(app?.HapticFeedback)app.HapticFeedback.notificationOccurred('success');}catch(e){$('event-note').textContent=e.message;await loadEvent();}finally{busy=false;}});
-setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState)loadEvent();if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState)loadEvent();}},1000);
+setInterval(()=>{if(timerLeft>0){timerLeft--;$('event-timer').textContent=fmt(timerLeft);}else if(evState&&currentScreen==='events'&&!document.hidden&&!busy)loadEvent();if(cooldownLeft>0){cooldownLeft=Math.max(0,cooldownLeft-1000);if(cooldownLeft===0&&evState&&currentScreen==='events'&&!busy)loadEvent();}},1000);
 document.addEventListener('click',e=>{const a=e.target.closest('a');if(a&&a.href.startsWith('https://t.me/')&&app){e.preventDefault();app.openTelegramLink(a.href);setTimeout(()=>app.close(),120);}});
-bootProgress(22);requestAnimationFrame(()=>bootProgress(38));loadEvent();
+function showScreen(name){
+ if(!['plans','events','account'].includes(name))return;
+ currentScreen=name;
+ document.querySelectorAll('.app-screen').forEach(el=>el.hidden=el.id!=='screen-'+name);
+ document.querySelectorAll('.bottom-nav button').forEach(el=>{if(el.dataset.screen===name)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');});
+ clearGame();window.scrollTo(0,0);
+ if(name==='events')loadEvent();
+ if(app?.BackButton){if(name==='plans')app.BackButton.hide();else app.BackButton.show();}
+}
+document.querySelectorAll('[data-screen]').forEach(el=>el.addEventListener('click',()=>showScreen(el.dataset.screen)));
+app?.BackButton?.onClick(()=>showScreen('plans'));
+$('app-close').onclick=()=>{if(app?.initData)app.close();else showScreen('account');};
+const plans=[...document.querySelectorAll('[data-plan]')];
+function selectPlan(el){plans.forEach(p=>{const selected=p===el;p.classList.toggle('selected',selected);p.setAttribute('aria-checked',String(selected));p.tabIndex=selected?0:-1;});$('plan-continue').href=el.dataset.url;$('plan-selection').textContent='Выбран: '+el.dataset.label;}
+plans.forEach((el,i)=>{el.tabIndex=i===0?0:-1;el.onclick=()=>selectPlan(el);el.onkeydown=e=>{const delta={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];if(delta){e.preventDefault();const next=plans[(i+delta+plans.length)%plans.length];selectPlan(next);next.focus();}};});
+document.addEventListener('visibilitychange',()=>{if(document.hidden)clearGame();else if(currentScreen==='events')loadEvent();});
+bootProgress(70);requestAnimationFrame(finishLoader);
+
 </script>"""
-    return ('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#05070b"><title>'+title+'</title><style>'+css+'</style></head><body><main>'+content+'</main>'+scripts+'</body></html>').encode()
+    return ('<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#080b10"><title>'+title+'</title><style>'+css+'</style></head><body><main>'+content+'</main>'+scripts+'</body></html>').encode()
 
 def handler(db_path,public_base,support,cfg=None):
     cfg=cfg or {}
