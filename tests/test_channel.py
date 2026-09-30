@@ -149,14 +149,6 @@ class CalendarTests(unittest.TestCase):
             slot=due_slot(db,1,{},stamp);self.assertTrue(slot)
             db.execute('INSERT INTO agent_meta VALUES(?,?)',(slot,'1'));db.commit();db.close()
             db=open_db(Path(tmp));self.assertIsNone(due_slot(db,1,{},stamp));db.close()
-    def test_breaking_requires_recent_second_source(self):
-        from channel_agent import choose_breaking
-        a={'key':'a','url':'https://one.test/a','title':'В городе Примерске произошел теракт на вокзале','body':'Сообщение','published':10000}
-        b={**a,'key':'b','url':'https://two.test/b'}
-        self.assertIsNone(choose_breaking([a],set(),10010))
-        self.assertTrue(choose_breaking([a,b],set(),10010)['breaking'])
-        self.assertIsNone(choose_breaking([a,b],{'b'},10010))
-        self.assertIsNone(choose_breaking([a,b],set(),15000))
     def test_signature_uses_utf16_offset(self):
         p=Publisher('123:test');p.channel_url='https://t.me/ReversVPN'
         text='Новость 🥶\n\nReVPN. Новостной канал'
@@ -170,15 +162,29 @@ class CalendarTests(unittest.TestCase):
         self.assertEqual(cleaned.count('Текст новости.'),1)
 
 
-class BreakingAviationTests(unittest.TestCase):
-    def test_possible_hijack_signal_is_an_urgent_report(self):
-        from channel_agent import breaking_kind,choose_breaking
-        title='Самолёт из Дубая в Тель-Авив подал сигнал о возможном захвате'
-        self.assertEqual(breaking_kind(title),'aviation')
-        a={'title':title,'body':'Причина уточняется.','key':'a','url':'https://one.test/news','published':10000}
-        b={**a,'title':'Самолет из Дубая в Тель-Авив подал сигнал бедствия','key':'b','url':'https://two.test/news'}
-        self.assertIsNotNone(choose_breaking([a,b],set(),10010))
-        self.assertIsNone(choose_breaking([a],set(),10010))
-    def test_routine_airline_story_not_urgent(self):
-        from channel_agent import breaking_kind
-        self.assertEqual(breaking_kind('Самолёт из Дубая в Тель-Авив открыл новый рейс'),'')
+class SemanticBreakingTests(unittest.TestCase):
+    def article(self,key,domain,title):
+        return {'title':title,'body':'Сообщение о значимом событии.','key':key,'url':'https://'+domain+'/news','published':10000}
+    def test_any_topic_and_cached_evaluation(self):
+        from channel_agent import choose_breaking
+        for title in ('Скончался всемирно известный композитор','Во всей стране восстановили электроснабжение','Объявлен научный прорыв мирового значения'):
+            with tempfile.TemporaryDirectory() as tmp:
+                db=open_db(Path(tmp));a=self.article('a','one.test',title);b=self.article('b','two.test',title)
+                with patch('channel_agent.assess_breaking',return_value={'urgent':True,'significance':5,'time_sensitive':5}) as assess, patch('channel_agent.editorial_json',return_value={'matches':[0]}) as compare:
+                    self.assertIsNotNone(choose_breaking([a,b],set(),10010,DEFAULT,db))
+                    self.assertIsNotNone(choose_breaking([a,b],set(),10010,DEFAULT,db))
+                    self.assertEqual(assess.call_count,2);self.assertEqual(compare.call_count,1)
+                db.close()
+    def test_single_source_and_unconfirmed_do_not_publish(self):
+        from channel_agent import choose_breaking
+        with tempfile.TemporaryDirectory() as tmp:
+            db=open_db(Path(tmp));a=self.article('a','one.test','Важное событие');b=self.article('b','two.test','Другое событие')
+            with patch('channel_agent.assess_breaking',return_value={'urgent':True,'significance':5,'time_sensitive':5}), patch('channel_agent.editorial_json',return_value={'matches':[]}):
+                self.assertIsNone(choose_breaking([a],set(),10010,DEFAULT,db))
+                self.assertIsNone(choose_breaking([a,b],set(),10010,DEFAULT,db))
+                self.assertIsNone(choose_breaking([a,b],set(),20000,DEFAULT,db))
+            db.close()
+    def test_bad_model_output_does_not_publish(self):
+        from channel_agent import assess_breaking
+        with patch('channel_agent.editorial_json',return_value={'urgent':'true','significance':5,'time_sensitive':5}):
+            with self.assertRaises(ValueError): assess_breaking(DEFAULT,self.article('a','one.test','Событие'))
