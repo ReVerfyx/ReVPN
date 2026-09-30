@@ -148,7 +148,8 @@ class Store:
         kopecks=int(kopecks)
         if kopecks<0: raise ShopError('Бонус не может быть отрицательным.')
         self.db.execute("INSERT INTO users(id,state,bonus_kopecks) VALUES(?,'{}',?) ON CONFLICT(id) DO UPDATE SET bonus_kopecks=bonus_kopecks+excluded.bonus_kopecks",(uid,kopecks))
-        return self.bonus_balance(uid)
+        row=self.db.execute('SELECT bonus_kopecks FROM users WHERE id=?',(uid,)).fetchone()
+        return int(row[0] if row else 0)
 
     def quote(self, uid, hours, gb, amount, product="regular", operator="", targets=None, min_cash=100):
         amount=int(amount); min_cash=max(0,int(min_cash)); qid=uuid.uuid4().hex
