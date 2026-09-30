@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 import uuid
+from urllib.parse import quote_plus
 from datetime import datetime, timezone
 from core import Store, Engine, ShopError, price, rubles, description
 from providers import Telegram, Lolz, Panel, APIError
@@ -60,6 +61,7 @@ class Bot:
             text+='\n'+label+' — <b>'+cost+' ₽</b>'
             rows.append([button(label+' · '+cost+' ₽ / 30 дн.','product:'+key)])
         rows += [[button('Добавить VPN в Happ','connect'),button('Мои покупки','mine')],
+                 [button('Создать зеркало','mirror:create')],
                  [button('Бесплатный Telegram-прокси','free')],[button('Как подключиться','help')]]
         self.tg.send(uid,text,rows)
 
@@ -69,10 +71,46 @@ class Bot:
         total=self.s.db.execute('SELECT COUNT(*) FROM users').fetchone()[0]
         text='<b>🧊 ReVPN панелька</b>\n\nПользователей: <b>'+str(total)+'</b>\n'
         text+='Заказы: '+', '.join(f'{escaped(k)} — {v}' for k,v in counts.items())
-        self.tg.send(uid,text,[[button('🔗 Создать зеркало + пробный пакет','mirror:create')],
-                                [button('🔄 Обновить','panel:refresh')]])
+        self.tg.send(uid,text,[[button('Создать ключ VPN','admin:key:vpn')],
+                               [button('Создать ключ MTProto','admin:key:proxy')],
+                               [button('Выдать подписку пользователю','admin:issue')],
+                               [button('Забрать подписку','admin:revoke')],
+                               [button('Статистика','panel:stats')],
+                               [button('Создать зеркало','mirror:create')]])
 
-    def create_trial(self,uid,mirror_token=''):
+    def admin_stats(self,uid):
+        if uid not in PANEL_ADMINS: return
+        active=self.s.db.execute("SELECT COUNT(*) FROM orders WHERE status='active' AND expiry_ms>?",(int(time.time()*1000),)).fetchone()[0]
+        paid=self.s.db.execute("SELECT COALESCE(SUM(amount),0) FROM orders WHERE status IN ('active','paid','provisioning')").fetchone()[0]
+        mirrors=self.s.db.execute('SELECT COUNT(*) FROM mirrors').fetchone()[0]
+        self.tg.send(uid,'<b>Статистика ReVPN</b>\n\nПользователей: '+str(self.s.db.execute('SELECT COUNT(*) FROM users').fetchone()[0])+
+                     '\nАктивных подписок: '+str(active)+'\nЗеркал создано: '+str(mirrors)+
+                     '\nСумма заказов: '+rubles(paid)+' ₽',[[button('Назад в панель','panel')]])
+
+    def admin_target_prompt(self,uid,action):
+        if uid not in PANEL_ADMINS: return
+        self.s.state(uid,{'step':'admin_target','admin_action':action})
+        self.tg.send(uid,'Введи числовой Telegram ID пользователя.',[[button('Отмена','panel')]])
+
+    def admin_issue(self,uid,product,target):
+        oid=self.s.create_manual_order(target,product,720,['regular'] if product=='regular' else [])
+        o=self.s.get(oid); link=''
+        try:
+            if product=='mtproto': link=self.engine.panel.ensure(o)
+            else: link=self.engine.panel.ensure(o)
+            self.s.patch(oid,link=link,delivered=1)
+            self.show_order(target,self.s.get(oid))
+            self.tg.send(uid,'Подписка выдана пользователю <code>'+str(target)+'</code>.')
+        except Exception:
+            self.tg.send(uid,'Ключ создан, но панель пока не выдала доступ. Заказ: <code>'+oid+'</code>')
+
+    def admin_revoke(self,uid,target):
+        rows=self.s.db.execute("SELECT * FROM orders WHERE user_id=? AND status='active'",(target,)).fetchall(); n=0
+        for row in rows:
+            o=dict(row); self.engine.panel.revoke(o); self.s.patch(o['id'],status='revoked',expiry_ms=int(time.time()*1000),link=None,delivered=1); n+=1
+        self.tg.send(uid,'Забрано подписок: <b>'+str(n)+'</b> у пользователя <code>'+str(target)+'</code>.')
+
+    def create_trial(self,uid,mirror_token='',managed_username=''):
         if self.s.has_trial(uid):
             return self.tg.send(uid,'Пробный пакет уже выдавался этому Telegram-аккаунту.')
         ids=self.s.create_trial_orders(uid,72)
@@ -86,11 +124,18 @@ class Bot:
                 except Exception as exc: log.warning('trial provision %s: %s',oid,type(exc).__name__)
         token=mirror_token or self.s.create_mirror(uid)
         bot_name=self.cfg.get('telegram',{}).get('bot_username','')
-        mirror=('https://t.me/'+bot_name+'?start=mirror_'+token) if bot_name else 'Команда /start mirror_'+token
+        mirror=('https://t.me/'+managed_username) if managed_username else (('https://t.me/'+bot_name+'?start=mirror_'+token) if bot_name else 'Команда /start mirror_'+token)
         self.tg.send(uid,'<b>Готово 🥶</b>\n\nТебе выдан пробный пакет на 3 дня: VPN, белые списки и MTProto.\n'
                      'VPN уже можно добавить в Happ. MTProto появится после запуска фонового сервиса.\n\n'
                      '<b>Зеркало:</b> <code>'+escaped(mirror)+'</code>',
                      [[{'text':'Добавить VPN в Happ 🥶','url':links[0].replace('/sub/','/connect/')}] if links else [button('Мои подписки','mine')]])
+
+    def mirror_link(self,uid):
+        manager=self.cfg.get('telegram',{}).get('bot_username','')
+        username=('ReVPN'+str(uid)[-8:]+'Bot')[:32]
+        link='https://t.me/newbot/'+manager+'/'+username+'?name='+quote_plus('ReVPN 🥶')
+        self.tg.send(uid,'Нажми ссылку и подтверди создание личного зеркала в Telegram. После подтверждения бот автоматически выдаст пробный пакет на 3 дня.',
+                     [[{'text':'Создать зеркало в Telegram','url':link}]])
 
     def product(self,uid,product):
         if product not in PRODUCTS: raise ShopError('Неизвестный тариф.')
@@ -211,17 +256,16 @@ class Bot:
         self.show_order(uid,o)
 
     def callback(self,uid,data):
+        if data=='panel:stats': return self.admin_stats(uid)
+        if data=='admin:issue': return self.admin_target_prompt(uid,'issue')
+        if data=='admin:revoke': return self.admin_target_prompt(uid,'revoke')
+        if data=='admin:key:vpn': return self.admin_target_prompt(uid,'key_vpn')
+        if data=='admin:key:proxy': return self.admin_target_prompt(uid,'key_proxy')
         if data in ('panel:refresh','panel'):
             if uid in PANEL_ADMINS: return self.vpn_panelka(uid)
             return
         if data=='mirror:create':
-            if uid not in PANEL_ADMINS: return
-            token=self.s.create_mirror(uid)
-            if not self.s.has_trial(uid):
-                self.create_trial(uid,token); return
-            bot_name=self.cfg.get('telegram',{}).get('bot_username','')
-            link='https://t.me/'+bot_name+'?start=mirror_'+token
-            return self.tg.send(uid,'Новое зеркало: <code>'+escaped(link)+'</code>')
+            return self.mirror_link(uid)
         if data=='home': return self.home(uid)
         if data=='buy': return self.home(uid)
         if data.startswith('product:'): return self.product(uid,data.split(':',1)[1])
@@ -289,6 +333,12 @@ class Bot:
         if text.startswith('/start order_'):
             oid=text.split('order_',1)[1].strip()
             return self.process_order(uid,oid)
+        state=self.s.state(uid)
+        if state.get('step')=='admin_target' and uid in PANEL_ADMINS:
+            if not text.isdigit(): raise ShopError('Нужен числовой Telegram ID.')
+            target=int(text); action=state.get('admin_action'); self.s.state(uid,{})
+            if action=='revoke': return self.admin_revoke(uid,target)
+            return self.admin_issue(uid,'mtproto' if action=='key_proxy' else 'regular',target)
         if text.split(' ',1)[0] in ('/start','/menu','/cancel'): return self.home(uid)
         if text in ('/help','/paysupport','/support','/privacy'): return self.help(uid)
         if text in ('/my','/orders'): return self.mine(uid)
@@ -311,6 +361,14 @@ class Bot:
         return self.home(uid)
 
     def update(self,u):
+        managed=u.get('managed_bot')
+        if managed:
+            owner=int(managed.get('user',{}).get('id',0)); bot=managed.get('bot',{})
+            if owner and bot.get('id'):
+                token=self.tg.managed_token(bot['id'])
+                self.s.add_managed_bot(bot['id'],owner,bot.get('username',''),token)
+                if not self.s.has_trial(owner): self.create_trial(owner,managed_username=bot.get('username',''))
+            return
         cb=u.get('callback_query')
         msg=cb.get('message') if cb else u.get('message')
         if not msg or msg.get('chat',{}).get('type')!='private': return
@@ -384,7 +442,7 @@ class Bot:
         last_check=0
         while self.running:
             try:
-                updates=self.tg.call('getUpdates',offset=offset,timeout=5,limit=20,allowed_updates=['message','callback_query'])
+                updates=self.tg.call('getUpdates',offset=offset,timeout=5,limit=20,allowed_updates=['message','callback_query','managed_bot'])
                 for u in updates:
                     try: self.update(u)
                     except Exception as exc: log.error('update=%s error=%s',u['update_id'],type(exc).__name__)

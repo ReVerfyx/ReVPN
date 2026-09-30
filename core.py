@@ -82,6 +82,9 @@ class Store:
           trial_order_ids TEXT NOT NULL DEFAULT '[]');
         CREATE TABLE IF NOT EXISTS trial_grants(
           user_id INTEGER PRIMARY KEY, created INTEGER NOT NULL, mirror_token TEXT NOT NULL DEFAULT '');
+        CREATE TABLE IF NOT EXISTS managed_bots(
+          bot_id INTEGER PRIMARY KEY, owner_id INTEGER NOT NULL, username TEXT NOT NULL DEFAULT '',
+          token TEXT NOT NULL, created INTEGER NOT NULL);
         """)
 
     def display_name(self, uid, name=None):
@@ -163,6 +166,19 @@ class Store:
 
     def has_trial(self, uid):
         return self.db.execute('SELECT 1 FROM trial_grants WHERE user_id=?',(uid,)).fetchone() is not None
+
+    def add_managed_bot(self, bot_id, owner_id, username, token):
+        self.db.execute('INSERT OR REPLACE INTO managed_bots(bot_id,owner_id,username,token,created) VALUES(?,?,?,?,?)',
+                        (bot_id,owner_id,username,token,int(time.time())))
+
+    def create_manual_order(self, uid, product='regular', hours=720, targets=None):
+        now=int(time.time()); oid=uuid.uuid4().hex
+        self.db.execute('''INSERT INTO orders
+          (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email,expiry_ms,product,operator,targets,display_name,delivered)
+          VALUES(?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?,?,0)''',
+          (oid,'manual-'+oid,uid,hours,0,0,now,str(uuid.uuid4()),uuid.uuid4().hex,'manual-'+oid,
+           (now+hours*3600)*1000,product,'',json.dumps(targets or (['regular'] if product=='regular' else [])),self.display_name(uid)))
+        return oid
 
     def create_trial_orders(self, uid, hours=72, operator=''):
         if self.has_trial(uid):

@@ -80,3 +80,13 @@ class Delivery:
             self.s.db.execute('INSERT INTO allocations(order_id,node_id,link,quota) VALUES(?,?,?,?) ON CONFLICT(order_id,node_id) DO UPDATE SET link=excluded.link',
                              (o['id'],n,link,child['quota_bytes']))
         return self.cfg['subscription']['public_base'].rstrip('/')+'/sub/'+o['sub_id']
+
+    def revoke(self,o):
+        if o.get('product')=='mtproto': return
+        for n in self.selected(o):
+            panel=self.panels.get(n)
+            if panel:
+                try: panel.remove(self.child(o,n))
+                except Exception: pass
+        self.s.db.execute('DELETE FROM allocations WHERE order_id=?',(o['id'],))
+

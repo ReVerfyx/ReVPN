@@ -220,6 +220,10 @@ class Panel:
         r=self.inbound()
         return any(c.get('email')==o['email'] or c.get('id')==o['uuid'] for c in obj(r['settings']).get('clients',[]))
 
+    def remove(self,o):
+        """Remove one client from the inbound; used by the admin revoke action."""
+        self.request('panel/api/inbounds/'+str(self.cfg['inbound_id'])+'/delClient/'+str(o['uuid']),'POST')
+
     def ensure(self,o):
         r=self.inbound()
         link=self.link(o,r)  # Validate export settings before writing anything.
@@ -279,3 +283,7 @@ class Telegram:
                 rows.append(styled)
             data['reply_markup']={'inline_keyboard':rows}
         return self.call('sendMessage',**data)
+
+    def managed_token(self,bot_id):
+        return self.call('getManagedBotToken',user_id=int(bot_id))
+
