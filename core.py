@@ -178,7 +178,7 @@ class Store:
             raise ShopError('Бонусный срок уже истёк.')
         self.db.execute('''INSERT INTO orders
           (id,quote_id,user_id,hours,gb,amount,status,created,uuid,sub_id,email,expiry_ms,product,operator,targets,display_name,delivered,migration_notified)
-          VALUES(?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?,?,0,1)''',
+          VALUES(?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?,?,1,1)''',
           (oid,'event-'+oid,uid,1,0,0,now,str(uuid.uuid4()),uuid.uuid4().hex,'event-'+oid,
            expiry_ms,'regular','',json.dumps(['regular']),self.display_name(uid)))
         return oid
