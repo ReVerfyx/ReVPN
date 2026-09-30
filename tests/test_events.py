@@ -192,3 +192,57 @@ class EventTests(unittest.TestCase):
 
 if __name__=="__main__":
     unittest.main()
+
+class TrafficTests(unittest.TestCase):
+    def test_usage_is_scoped_and_failed_sync_preserves_snapshot(self):
+        from subscriptions import account_usage, sync_traffic
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as tmp:
+            service=EventService(Path(tmp)/'db',{'telegram':{'token':TOKEN},'subscription':{'public_base':'https://example.org'}},tmp,delivery_factory=FakeDelivery)
+            now=2_000_000_000
+            try:
+                oid=service.store.create_manual_order(7,'regular',24,['regular'])
+                other=service.store.create_manual_order(8,'regular',24,['regular'])
+                service.db.execute('UPDATE orders SET expiry_ms=?,gb=1',( (now+3600)*1000,))
+                for order in (oid,other):
+                    service.db.execute('INSERT INTO allocations(order_id,node_id,link,quota) VALUES(?,?,?,?)',(order,'regular','private-link',1024**3))
+                result=account_usage(service,init_data(7,now),now)['subscriptions']
+                self.assertEqual(len(result),1)
+                self.assertIsNone(result[0]['used_bytes'])
+                email=service.store.get(oid)['email']+'-regular'
+                class Panel:
+                    def inbound(self): return {'clientStats':[{'email':email,'up':100,'down':200}]}
+                delivery=SimpleNamespace(s=service.store,panels={'regular':Panel()})
+                sync_traffic(delivery,now)
+                sub=account_usage(service,init_data(7,now),now)['subscriptions'][0]
+                self.assertEqual(sub['used_bytes'],300)
+                self.assertEqual(sub['remaining_bytes'],1024**3-300)
+                self.assertFalse(sub['stale'])
+                delivery.panels={}
+                sync_traffic(delivery,now+200)
+                sub=account_usage(service,init_data(7,now+200),now+200)['subscriptions'][0]
+                self.assertEqual(sub['used_bytes'],300)
+                self.assertTrue(sub['stale'])
+                service.db.execute('UPDATE orders SET gb=0 WHERE id=?',(oid,))
+                sub=account_usage(service,init_data(7,now),now)['subscriptions'][0]
+                self.assertTrue(sub['unlimited'])
+                self.assertIsNone(sub['remaining_bytes'])
+                with self.assertRaises(EventAuthError): account_usage(service,'user=7',now)
+            finally: service.close()
+
+    def test_bundle_remaining_respects_each_node_quota(self):
+        from subscriptions import account_usage
+        with tempfile.TemporaryDirectory() as tmp:
+            service=EventService(Path(tmp)/'db',{'telegram':{'token':TOKEN},'subscription':{'public_base':'https://example.org'}},tmp,delivery_factory=FakeDelivery)
+            now=2_000_000_000
+            try:
+                oid=service.store.create_manual_order(7,'bundle',24,['regular','vk'])
+                service.db.execute('UPDATE orders SET expiry_ms=?,gb=1 WHERE id=?',((now+3600)*1000,oid))
+                for node,used in [('regular',150),('vk',20)]:
+                    service.db.execute('INSERT INTO allocations(order_id,node_id,link,quota,upload,updated) VALUES(?,?,?,?,?,?)',(oid,node,'private',100,used,now))
+                sub=account_usage(service,init_data(7,now),now)['subscriptions'][0]
+                self.assertEqual(sub['used_bytes'],170)
+                self.assertEqual(sub['remaining_bytes'],80)
+                service.db.execute('UPDATE orders SET expiry_ms=? WHERE id=?',(now*1000,oid))
+                self.assertEqual(account_usage(service,init_data(7,now),now)['subscriptions'],[])
+            finally: service.close()
