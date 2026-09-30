@@ -56,7 +56,7 @@ class CheckoutTests(unittest.TestCase):
         self.assertEqual(self.s.db.execute('select count(*) from quotes').fetchone()[0],1)
     def test_menu_and_quote_use_config_prices(self):
         self.cfg['pricing']['unlimited_30d_rub']=77
-        self.b.home(1); self.assertIn('77 ₽',self.tg.messages[-1][1])
+        self.b.catalog(1); self.assertIn('77 ₽',str(self.tg.messages[-1][2]))
         self.b.product(1,'regular'); self.b.durations(1,0)
         key=self.tg.messages[-1][2][4][0]['callback_data'];self.b.callback(1,key)
         self.assertIn('77 ₽',self.tg.messages[-1][1])
@@ -65,6 +65,32 @@ class CheckoutTests(unittest.TestCase):
     def test_product_prices(self):
         for key,rub in [('regular',50),('whitelist',100),('bundle',150),('mtproto',25)]:
             self.assertEqual(price(self.cfg['pricing'],720,0,key),rub*100)
+    def test_admin_menu_and_callbacks_are_restricted(self):
+        self.b.home(1)
+        self.assertNotIn('Админ-панель',str(self.tg.messages[-1]))
+        count=len(self.tg.messages)
+        for action in ('panel','admin:issue','admin:revoke','admin:key:vpn','admin:key:proxy','panel:stats'):
+            self.b.callback(1,action)
+        self.assertEqual(len(self.tg.messages),count)
+        self.b.home(716962014)
+        self.assertIn('Админ-панель',str(self.tg.messages[-1]))
+
+    def test_proxy_domain_preserves_access(self):
+        from delivery import proxy_link
+        from urllib.parse import urlsplit,parse_qs
+        self.cfg['mtproto']['public_host']='2.26.85.86'
+        for kind in ('paid','free'):
+            link=proxy_link(self.cfg,'a'*32,kind)
+            q=parse_qs(urlsplit(link).query)
+            self.assertEqual(q['server'],['revpn.work.gd'])
+            self.assertEqual(q['secret'],['dd'+'a'*32])
+            self.assertEqual(q['port'],[str(self.cfg['mtproto'][kind]['port'])])
+
+    def test_cancel_admin_prompt(self):
+        self.b.admin_target_prompt(716962014,'issue')
+        self.b.message(716962014,'/cancel')
+        self.assertEqual(self.s.state(716962014),{})
+
     def test_copy_allowed(self):
         tg=Telegram('123:test')
         with patch.object(tg,'call',return_value={}) as call:
