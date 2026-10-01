@@ -216,6 +216,35 @@ class PanelTests(unittest.TestCase):
         self.inbound['streamSettings'].update(security='reality',realitySettings={'privateKey':'PRIVATE_DO_NOT_EXPORT','shortIds':['abcd'],'serverNames':['example.org'],'settings':{'publicKey':'PUBLIC'}})
         link=self.panel.link(self.o,self.inbound)
         self.assertIn('pbk=PUBLIC',link); self.assertNotIn('PRIVATE',link)
+    def test_xhttp_reality_link_and_client_have_no_vision_flow(self):
+        self.inbound['port']=8443
+        self.inbound['streamSettings']={
+            'network':'xhttp',
+            'security':'reality',
+            'xhttpSettings':{'path':'/mobile','mode':'auto','host':'front.example.org'},
+            'realitySettings':{
+                'shortIds':['abcd'],
+                'serverNames':['allowed.example.org'],
+                'settings':{'publicKey':'PUBLIC','fingerprint':'edge'},
+            },
+        }
+        with patch.object(self.panel,'request',side_effect=self.fake_request):
+            link=self.panel.ensure(self.o)
+        self.assertIn('type=xhttp',link)
+        self.assertIn('path=%2Fmobile',link)
+        self.assertIn('mode=auto',link)
+        self.assertIn('host=front.example.org',link)
+        self.assertIn('pbk=PUBLIC',link)
+        self.assertIn('sni=allowed.example.org',link)
+        self.assertIn('fp=edge',link)
+        self.assertNotIn('flow=',link)
+        self.assertEqual(self.inbound['settings']['clients'][0]['flow'],'')
+
+    def test_xhttp_without_tls_or_reality_is_rejected(self):
+        self.inbound['streamSettings']={'network':'xhttp','security':'none','xhttpSettings':{'path':'/'}}
+        with self.assertRaises(ShopError):
+            self.panel.validate_inbound(self.inbound)
+
     def test_shared_limit_rejected(self):
         self.inbound['total']=1
         with self.assertRaises(ShopError): self.panel.validate_inbound(self.inbound)
