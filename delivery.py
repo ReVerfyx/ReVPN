@@ -25,7 +25,9 @@ OPERATORS={
 WHITELIST=('max','yandex','disk','vk','vkvideo')
 
 def nodes(cfg):
-    return cfg.get('nodes',{'regular':{'label':'Обычный','enabled':True,'panel':cfg['panel']}})
+    if 'nodes' in cfg:
+        return cfg['nodes']
+    return {'regular':{'label':'Обычный','enabled':True,'panel':cfg['panel']}}
 
 def targets(cfg,product,operator=''):
     if product=='mtproto':
