@@ -28,9 +28,10 @@ class MobileProfileTests(unittest.TestCase):
         self.assertEqual(targets(cfg,'bundle','mts'),['regular','mts_mobile'])
 
     def test_whitelist_reference_sources_are_https_and_do_not_import_proxy_keys(self):
-        self.assertEqual(set(SOURCES),{'sni','cidr','domains'})
+        self.assertEqual(set(SOURCES),{'domains','cidr','ips'})
         for url in SOURCES.values():
             self.assertTrue(url.startswith('https://raw.githubusercontent.com/'))
+            self.assertIn('hxehex/russia-mobile-internet-whitelist',url)
             self.assertNotIn('Vless-Reality-White-Lists-Rus-Mobile',url)
 
 
