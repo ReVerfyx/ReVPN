@@ -42,6 +42,20 @@
     "local_port": 8090
   },
   "supported_operators": [],
+  "operator_nodes": {
+    "mts": [],
+    "megafon": [],
+    "beeline": [],
+    "t2": [],
+    "yota": [],
+    "tmobile": [],
+    "sber": [],
+    "alfa": [],
+    "rostelecom": [],
+    "gpbank": [],
+    "volna": [],
+    "motiv": []
+  },
   "nodes": {
     "regular": {
       "label": "Обычный",
