@@ -7,8 +7,21 @@ from urllib.parse import quote, urlencode, urlsplit
 from core import ShopError
 from providers import Panel
 
-PRODUCTS={'regular':'Обычный VPN','whitelist':'Белые списки · 5 профилей','bundle':'Обычный + белые списки','mtproto':'MTProto для Telegram'}
-OPERATORS={'mts':'МТС','megafon':'МегаФон','beeline':'Билайн','t2':'T2','yota':'Yota'}
+PRODUCTS={'regular':'Обычный VPN','whitelist':'Белые списки · мобильный режим','bundle':'Обычный + белые списки','mtproto':'MTProto для Telegram'}
+OPERATORS={
+    'mts':'МТС',
+    'megafon':'МегаФон',
+    'beeline':'Билайн',
+    't2':'T2 / Tele2',
+    'yota':'Yota',
+    'tmobile':'Т-Мобайл',
+    'sber':'СберМобайл',
+    'alfa':'Альфа-Мобайл',
+    'rostelecom':'Ростелеком',
+    'gpbank':'ГПБ Мобайл',
+    'volna':'Волна',
+    'motiv':'Мотив',
+}
 WHITELIST=('max','yandex','disk','vk','vkvideo')
 
 def nodes(cfg):
@@ -22,7 +35,8 @@ def targets(cfg,product,operator=''):
     if product!='regular':
         if operator not in OPERATORS or operator not in cfg.get('supported_operators',[]):
             raise ShopError('Пока не можем помочь с этим оператором 🥶 Счёт не создан.')
-    selected=(['regular'] if product in ('regular','bundle') else [])+(list(WHITELIST) if product in ('whitelist','bundle') else [])
+    whitelist_nodes=list(cfg.get('operator_nodes',{}).get(operator) or WHITELIST) if product in ('whitelist','bundle') else []
+    selected=(['regular'] if product in ('regular','bundle') else [])+whitelist_nodes
     catalog=nodes(cfg)
     if any(not catalog.get(n,{}).get('enabled') for n in selected):
         raise ShopError('Этот тариф ещё настраивается. Покупка пока недоступна.')
