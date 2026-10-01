@@ -190,7 +190,7 @@ def main():
             remote['url']=ask('URL 3X-UI этого профиля',panel['url'])
             if remote['url']!=panel['url']:
                 remote.update(token=getpass.getpass('API-токен этой панели: ').strip(),username='',password='',ca_file='',local_tls=False,host_header='')
-            remote['inbound_id']=int(ask('ID VLESS TCP/RAW inbound'))
+            remote['inbound_id']=int(ask('ID VLESS TCP/RAW/XHTTP inbound'))
             remote['public_host']=ask('Публичный адрес профиля')
             remote['public_port']=int(ask('Публичный порт; 0 = порт inbound','0'))
             remote['sni']=ask('SNI; Enter = настройки inbound')
@@ -200,9 +200,10 @@ def main():
             node.update(enabled=True,panel=remote)
             print('Открой TCP-порт профиля на его сервере и в firewall хостинга:',remote['public_port'] or inbound_node['port'])
         print('Поддержка определяется реальными тестами на мобильной сети, не названием профиля.')
-        ops=ask('Проверенные операторы через запятую: mts,megafon,beeline,t2,yota (Enter = пока никого)')
+        allowed={'mts','megafon','beeline','t2','yota','tmobile','sber','alfa','rostelecom','gpbank','volna','motiv'}
+        ops=ask('Проверенные операторы через запятую: '+','.join(sorted(allowed))+' (Enter = пока никого)')
         cfg['supported_operators']=[v.strip() for v in ops.split(',') if v.strip()]
-        if set(cfg['supported_operators'])-{'mts','megafon','beeline','t2','yota'}: raise RuntimeError('Неизвестный оператор.')
+        if set(cfg['supported_operators'])-allowed: raise RuntimeError('Неизвестный оператор.')
     cfg['mtproto']['public_host']=ask('Публичный адрес MTProto',panel['public_host'])
     for kind,label in (('paid','платный'),('free','бесплатный со спонсорским каналом')):
         section=cfg['mtproto'][kind]
