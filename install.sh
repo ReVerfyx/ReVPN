@@ -16,7 +16,7 @@ python3 - "$src_dir" <<'PYCHECK'
 import sys
 from pathlib import Path
 root=Path(sys.argv[1])
-for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','events.py','mtproto_service.py','edge443.py','edge443_setup.py','setup.py'):
+for name in ('bot.py','core.py','providers.py','delivery.py','subscriptions.py','events.py','mtproto_service.py','edge443.py','edge443_setup.py','network_diag.py','setup.py'):
     compile((root/name).read_text(),str(root/name),'exec')
 sys.path.insert(0,str(root))
 if Path('/etc/revpn-shop/config.json').is_file():
@@ -27,7 +27,7 @@ PYCHECK
 if systemctl is-active --quiet revpn-shop; then systemctl stop revpn-shop; fi
 if ! id revpnshop >/dev/null 2>&1; then useradd --system --home /var/lib/revpn-shop --shell /usr/sbin/nologin revpnshop; fi
 install -d -m 755 /opt/revpn-shop
-for file in bot.py core.py providers.py delivery.py subscriptions.py events.py mtproto_service.py edge443.py edge443_setup.py setup.py config.example.json; do
+for file in bot.py core.py providers.py delivery.py subscriptions.py events.py mtproto_service.py edge443.py edge443_setup.py network_diag.py setup.py config.example.json; do
   if [[ "$src_dir/$file" != "/opt/revpn-shop/$file" ]]; then install -m 644 "$src_dir/$file" "/opt/revpn-shop/$file"; fi
 done
 install -d -o revpnshop -g revpnshop -m 700 /var/lib/revpn-shop
@@ -47,6 +47,23 @@ fi
 chown root:revpnshop /etc/revpn-shop /etc/revpn-shop/config.json
 chmod 750 /etc/revpn-shop
 chmod 640 /etc/revpn-shop/config.json
+
+# Conservative TCP tuning for mobile links. BBR/fq mainly reduces queueing delay
+# under load; MTU probing helps when mobile carrier paths black-hole large packets.
+if command -v sysctl >/dev/null 2>&1; then
+  modprobe tcp_bbr 2>/dev/null || true
+  cat > /etc/sysctl.d/90-revpn-mobile.conf <<'SYSCTL'
+net.ipv4.tcp_mtu_probing=1
+net.ipv4.tcp_fastopen=3
+SYSCTL
+  if sysctl -n net.ipv4.tcp_available_congestion_control 2>/dev/null | grep -qw bbr; then
+    cat >> /etc/sysctl.d/90-revpn-mobile.conf <<'SYSCTL'
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+SYSCTL
+  fi
+  sysctl -p /etc/sysctl.d/90-revpn-mobile.conf >/dev/null 2>&1 || true
+fi
 cat > /usr/local/bin/vpnshop <<'WRAPPER'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -56,6 +73,12 @@ fi
 exec python3 /opt/revpn-shop/bot.py "$@"
 WRAPPER
 chmod 755 /usr/local/bin/vpnshop
+cat > /usr/local/bin/revpn-netdiag <<'WRAPPER'
+#!/usr/bin/env bash
+set -euo pipefail
+exec python3 /opt/revpn-shop/network_diag.py "$@"
+WRAPPER
+chmod 755 /usr/local/bin/revpn-netdiag
 cat > /etc/systemd/system/revpn-shop.service <<'UNIT'
 [Unit]
 Description=ReVPN Shop Telegram bot (LZT payments)
