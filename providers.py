@@ -188,29 +188,62 @@ class Panel:
         if int(r.get('total',0))!=0 or int(r.get('expiryTime',0))!=0:
             raise ShopError('У общего inbound убери общий лимит и срок. Лимиты задаются клиентам.')
         stream=obj(r['streamSettings'])
-        if stream.get('network') not in ('tcp','raw'):
-            raise ShopError('Эта версия магазина поддерживает VLESS TCP/RAW.')
+        network=stream.get('network','tcp')
+        if network not in ('tcp','raw','xhttp'):
+            raise ShopError('Эта версия магазина поддерживает VLESS TCP/RAW и XHTTP.')
         settings=obj(r['settings'])
         if settings.get('decryption','none')!='none':
             raise ShopError('VLESS Encryption пока не поддерживается. Выбери inbound с decryption=none.')
         if stream.get('security','none') not in ('none','tls','reality'):
             raise ShopError('Неизвестный тип защиты.')
+        if network=='xhttp' and stream.get('security','none')=='none':
+            # XHTTP без TLS/REALITY технически возможен, но для публичной мобильной
+            # точки входа почти всегда является ошибкой конфигурации.
+            raise ShopError('Для XHTTP включи TLS или REALITY.')
+
+    def _flow(self,r):
+        stream=obj(r['streamSettings'])
+        network=stream.get('network','tcp')
+        security=stream.get('security','none')
+        return 'xtls-rprx-vision' if network in ('tcp','raw') and security in ('tls','reality') else ''
 
     def link(self,o,r):
         stream=obj(r['streamSettings'])
+        network=stream.get('network','tcp')
         security=stream.get('security','none')
-        params={'encryption':'none','type':'tcp','security':security,'headerType':'none'}
+        params={'encryption':'none','type':'xhttp' if network=='xhttp' else 'tcp','security':security}
+        if network in ('tcp','raw'):
+            params['headerType']='none'
+        else:
+            xh=obj(stream.get('xhttpSettings',{}))
+            params.update(path=xh.get('path') or '/',mode=xh.get('mode') or 'auto')
+            host_header=xh.get('host') or ''
+            if not host_header:
+                headers=obj(xh.get('headers',{}))
+                host_header=headers.get('Host') or headers.get('host') or ''
+                if isinstance(host_header,list):
+                    host_header=host_header[0] if host_header else ''
+            if host_header:
+                params['host']=str(host_header)
+        flow=self._flow(r)
         if security=='tls':
-            params.update(sni=self.cfg.get('sni') or self.cfg['public_host'],fp='chrome',flow='xtls-rprx-vision')
+            tls=obj(stream.get('tlsSettings',{}))
+            sni=self.cfg.get('sni') or tls.get('serverName') or self.cfg['public_host']
+            params.update(sni=sni,fp=tls.get('fingerprint') or 'chrome')
+            if flow:
+                params['flow']=flow
         if security=='reality':
             reality=stream.get('realitySettings',{})
             public_key=self.cfg.get('public_key') or reality.get('settings',{}).get('publicKey')
             names=reality.get('serverNames',[])
             shorts=reality.get('shortIds',[])
             sni=self.cfg.get('sni') or (names[0] if names else '')
+            fingerprint=reality.get('settings',{}).get('fingerprint') or 'chrome'
             if not public_key or not sni or not shorts:
                 raise ShopError('Для REALITY укажи public_key, SNI и Short ID в панели/конфиге.')
-            params.update(pbk=public_key,sni=sni,sid=shorts[0],fp='chrome',spx='/',flow='xtls-rprx-vision')
+            params.update(pbk=public_key,sni=sni,sid=shorts[0],fp=fingerprint,spx='/')
+            if flow:
+                params['flow']=flow
         host=self.cfg['public_host']
         if ':' in host: host='['+host+']'
         port=self.cfg.get('public_port') or r['port']
@@ -237,7 +270,7 @@ class Panel:
         # Existing clients are never extended on retries.
         if o['expiry_ms']<=int(time.time())*1000:
             raise ShopError('Срок заказа истёк до выдачи: администратор должен восстановить заказ.')
-        flow='' if obj(r['streamSettings']).get('security','none')=='none' else 'xtls-rprx-vision'
+        flow=self._flow(r)
         client={'id':o['uuid'],'email':o['email'],'subId':o['sub_id'],'enable':True,'flow':flow,
             'totalGB':o.get('quota_bytes',o['gb']*1024**3),'expiryTime':o['expiry_ms'],'limitIp':0,'tgId':o['user_id'],'reset':0}
         try:
